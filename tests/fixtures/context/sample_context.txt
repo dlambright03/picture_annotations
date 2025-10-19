@@ -1,0 +1,4 @@
+﻿This is sample external context for testing.
+
+The document contains images related to biology and cell structure.
+This context file helps the AI understand the overall theme.

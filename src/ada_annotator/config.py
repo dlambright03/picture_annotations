@@ -58,6 +58,15 @@ class Settings(BaseSettings):
     max_images_per_document: int = Field(default=100, ge=1, le=1000)
     temp_dir: Path = Field(default=Path("./temp"))
 
+    # Context Extraction Settings
+    context_paragraphs_before: int = Field(default=2, ge=0, le=10)
+    context_paragraphs_after: int = Field(default=2, ge=0, le=10)
+
+    # CLI Settings
+    dry_run: bool = False
+    create_backup: bool = False
+    log_file: Path = Field(default=Path("ada_annotator.log"))
+
     # Streamlit Settings
     streamlit_server_port: int = Field(default=8501, ge=1024, le=65535)
     streamlit_server_address: str = Field(default="localhost")
