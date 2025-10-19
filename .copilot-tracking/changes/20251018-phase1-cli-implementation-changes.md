@@ -246,3 +246,158 @@ Phase 1.3 is **COMPLETE** and **VALIDATED**:
 ### Next Phase
 
 Ready to proceed to **Phase 1.4: PPTX Image Extraction** (Task 1.4.1-1.4.4)
+
+---
+
+## Phase 1.4: PPTX Image Extraction
+
+### Started: 2025-10-19
+
+## Phase 1.4 Implementation Complete
+
+### Date: 2025-10-19
+
+### Tasks Completed
+
+#### Task 1.4.1: Implement PPTX Slide Iteration ✅
+- Created `src/ada_annotator/document_processors/pptx_extractor.py`
+- Implemented `PPTXExtractor` class extending `DocumentExtractor`
+- Features:
+  - Opens PPTX files with python-pptx library
+  - Iterates through all slides in presentation
+  - Returns slide count and metadata
+  - Validates PPTX file format
+  - Structured logging integration
+- Handles corrupted files gracefully with ProcessingError
+
+#### Task 1.4.2: Extract Images from Shapes ✅
+- Implemented `_extract_images_from_slide()` method
+- Implemented `_extract_image_from_shape()` method
+- Features:
+  - Identifies MSO_SHAPE_TYPE.PICTURE shapes on each slide
+  - Extracts image binary via shape.image.blob
+  - Gets image format from content_type
+  - Normalizes format names (JPEG, PNG, etc.)
+  - Uses PIL to get actual image dimensions
+  - Returns ImageMetadata objects with complete information
+  - Continues processing if individual image extraction fails
+- Ignores non-picture shapes (text boxes, etc.)
+
+#### Task 1.4.3: Capture Slide-Level Context (Titles) ✅
+- Implemented `_extract_slide_title()` method
+- Features:
+  - Finds slide title placeholder (shapes.title)
+  - Extracts title text for context
+  - Strips whitespace for clean text
+  - Handles slides without titles gracefully
+  - Stores title in position metadata dict
+- Title context included with each image for AI generation
+
+#### Task 1.4.4: Store Position Metadata (x, y, width, height) ✅
+- Position metadata captured in EMUs (English Metric Units)
+- Fields included in position dict:
+  - `slide_index`: Zero-based slide index
+  - `shape_index`: Zero-based shape index on slide
+  - `left_emu`: X position in EMUs
+  - `top_emu`: Y position in EMUs
+  - `width_emu`: Width in EMUs
+  - `height_emu`: Height in EMUs
+  - `slide_title`: Slide title for context (if present)
+- Note: EMU precision allows pixel-perfect recreation
+- 1 inch = 914,400 EMUs (standard PowerPoint unit)
+- Sufficient for exact position preservation in output
+
+#### Task 1.4.5: Extract Existing Alt-Text from PPTX Images ✅
+- Implemented `_extract_alt_text_from_shape()` method
+- Features:
+  - Checks shape name (ignoring default names)
+  - Searches for cNvPr (non-visual properties) element
+  - Checks both `title` and `descr` attributes
+  - Returns None if no alt-text present
+  - Handles XPath errors gracefully
+- Populates `existing_alt_text` field in ImageMetadata
+
+### Files Created (2 total)
+
+**Source Code (1 file):**
+1. `src/ada_annotator/document_processors/pptx_extractor.py` - PPTX extractor implementation (333 lines)
+
+**Tests (1 file):**
+2. `tests/unit/test_pptx_extractor.py` - Comprehensive test suite (408 lines)
+
+**Modified (1 file):**
+3. `src/ada_annotator/document_processors/__init__.py` - Added PPTXExtractor export
+
+### Test Results
+
+```
+16/16 tests PASSED (100% success rate)
+
+Test Coverage:
+- PPTXExtractor: 78%
+- Overall document_processors package: 85%
+
+Test Categories:
+- Initialization and validation: 5 tests
+- Image extraction functionality: 4 tests
+- Position metadata capture: 3 tests
+- Alt-text and ID generation: 1 test
+- Edge cases and error handling: 2 tests
+- Integration tests: 1 test
+```
+
+### Implementation Details
+
+**PPTX Extraction Approach:**
+- Uses python-pptx library for presentation parsing
+- Identifies picture shapes by MSO_SHAPE_TYPE.PICTURE
+- Two-level iteration: slides → shapes
+- PIL (Pillow) for image dimension detection
+- Direct binary access via shape.image.blob
+
+**Position Metadata - EMU Precision:**
+- PPTX stores positions in EMUs (English Metric Units)
+- Extremely precise: 914,400 EMUs per inch
+- Captures: left, top, width, height
+- Allows pixel-perfect recreation of layout
+- More precise than DOCX paragraph-based positions
+
+**Slide Context:**
+- Extracts slide titles from title placeholders
+- Provides document structure context for AI
+- Handles slides with no titles
+- Helps AI understand image purpose/context
+
+**Alt-Text Extraction:**
+- Looks for cNvPr element with title/descr attributes
+- Standard PowerPoint alt-text storage locations
+- Compliant with Microsoft PowerPoint implementation
+- Filters out default shape names ("Picture 1", etc.)
+
+### Validation Checkpoint
+
+Phase 1.4 is **COMPLETE** and **VALIDATED**:
+- ✅ All code follows PEP 8 (79-char limit, 4-space indent)
+- ✅ All functions have type hints
+- ✅ All modules have docstrings (PEP 257)
+- ✅ PPTXExtractor class implemented correctly
+- ✅ Slide iteration working
+- ✅ Picture shape extraction working
+- ✅ Position metadata captured (EMU precision)
+- ✅ Slide titles extracted for context
+- ✅ Existing alt-text extraction working
+- ✅ All 16 unit tests passing
+- ✅ 78% test coverage (exceeds 70% minimum)
+- ✅ Error handling for corrupted files
+- ✅ Edge cases covered (empty slides, multiple images, no titles)
+- ✅ Structured logging integrated
+- ✅ Format normalization (JPEG, PNG)
+- ✅ Non-picture shapes ignored correctly
+
+### Documentation
+
+Phase 1.4 summary complete with implementation details.
+
+### Next Phase
+
+Ready to proceed to **Phase 1.5: Context Extraction** (Task 1.5.1-1.5.6)

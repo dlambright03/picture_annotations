@@ -11,8 +11,12 @@ from ada_annotator.document_processors.base_extractor import (
 from ada_annotator.document_processors.docx_extractor import (
     DOCXExtractor
 )
+from ada_annotator.document_processors.pptx_extractor import (
+    PPTXExtractor
+)
 
 __all__ = [
     "DocumentExtractor",
     "DOCXExtractor",
+    "PPTXExtractor",
 ]
