@@ -1109,7 +1109,7 @@ Ready to proceed to **Phase 1.9: DOCX Output Generation** (Task 1.9.1-1.9.4)
 
 ### Tasks Completed
 
-#### Task 1.9.1: Create DocumentAssembler Base Class 
+#### Task 1.9.1: Create DocumentAssembler Base Class
 - Created `src/ada_annotator/document_processors/base_assembler.py`
 - Implemented `DocumentAssembler` abstract base class
 - Features:
@@ -1122,7 +1122,7 @@ Ready to proceed to **Phase 1.9: DOCX Output Generation** (Task 1.9.1-1.9.4)
 - Type hints on all methods
 - Comprehensive docstrings (PEP 257)
 
-#### Task 1.9.2: Implement DOCX Alt-Text Application 
+#### Task 1.9.2: Implement DOCX Alt-Text Application
 - Created `src/ada_annotator/document_processors/docx_assembler.py`
 - Implemented `DOCXAssembler` class extending `DocumentAssembler`
 - Features:
@@ -1136,7 +1136,7 @@ Ready to proceed to **Phase 1.9: DOCX Output Generation** (Task 1.9.1-1.9.4)
   - Graceful error handling with status map return
   - Comprehensive logging at debug and info levels
 
-#### Task 1.9.3: Preserve Image Positions in DOCX 
+#### Task 1.9.3: Preserve Image Positions in DOCX
 **Implementation:** Position preservation built into architecture
 - Uses paragraph-based position system from extraction (Phase 1.3)
 - Image_id encodes paragraph index for matching
@@ -1145,7 +1145,7 @@ Ready to proceed to **Phase 1.9: DOCX Output Generation** (Task 1.9.1-1.9.4)
 - Inline vs floating anchor preserved (XML structure unchanged)
 - Validated through integration tests
 
-#### Task 1.9.4: Handle Images with No Alt-Text Generated 
+#### Task 1.9.4: Handle Images with No Alt-Text Generated
 **Implementation:** Comprehensive error handling
 - `apply_alt_text()` returns status map: {image_id: status}
 - Status values: "success", "failed: reason", "skipped"
