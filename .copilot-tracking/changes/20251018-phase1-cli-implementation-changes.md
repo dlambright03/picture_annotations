@@ -103,10 +103,6 @@ Phase 1.1 is **COMPLETE** and **VALIDATED**:
 - Removed non-existent `types-python-docx` from pyproject.toml
 - Installed: pydantic-settings, structlog, pytest, pytest-cov
 
-### Next Phase
-
-Ready to proceed to **Phase 1.2: CLI Argument Parsing** (Task 1.2.1-1.2.2)
-
 ---
 
 ## Phase 1.3: DOCX Image Extraction
@@ -243,9 +239,6 @@ Phase 1.3 is **COMPLETE** and **VALIDATED**:
 
 - Created [`docs/phase_summaries/phase1.3_summary.md`](../../docs/phase_summaries/phase1.3_summary.md) - Comprehensive phase summary
 
-### Next Phase
-
-Ready to proceed to **Phase 1.4: PPTX Image Extraction** (Task 1.4.1-1.4.4)
 
 ---
 
@@ -398,6 +391,173 @@ Phase 1.4 is **COMPLETE** and **VALIDATED**:
 
 Phase 1.4 summary complete with implementation details.
 
+---
+
+## Phase 1.5: Context Extraction
+
+### Started: 2025-10-19
+
+## Phase 1.5 Implementation Complete
+
+### Date: 2025-10-19
+
+### Tasks Completed
+
+#### Task 1.5.1: Create ContextExtractor Class ✅
+- Created `src/ada_annotator/utils/context_extractor.py`
+- Implemented `ContextExtractor` base class
+- Features:
+  - Supports both DOCX and PPTX documents
+  - Hierarchical context extraction (5 levels)
+  - Main method: `extract_context_for_image()`
+  - Returns `ContextData` objects
+  - Structured logging integration
+- Handles both document types with type-specific extraction strategies
+
+#### Task 1.5.2: Implement External Context File Loader ✅
+- Implemented `_load_external_context()` method
+- Features:
+  - Reads .txt and .md files
+  - UTF-8 encoding support
+  - Whitespace stripping and normalization
+  - File not found handling (returns None gracefully)
+  - Context length validation (max 10,000 chars)
+  - Automatic truncation with ellipsis
+  - Unsupported format detection
+- Comprehensive error handling and logging
+
+#### Task 1.5.3: Extract Document-Level Context (Metadata) ✅
+- Implemented `_extract_document_context()` method
+- Features:
+  - Extracts core properties (title, subject, author)
+  - Works for both DOCX and PPTX formats
+  - Formatted as readable string with labels
+  - Handles missing metadata gracefully
+  - Default fallback: "DOCX/PPTX document (filename)"
+  - Exception handling with logging
+
+#### Task 1.5.4: Extract Section Context (Nearest Heading) ✅
+- Implemented `_extract_section_context()` method
+- Implemented `_extract_docx_section_context()` method
+- Implemented `_extract_pptx_section_context()` method
+- Features:
+  - **DOCX**: Searches backwards from image paragraph
+  - Identifies Heading 1-6 styles
+  - Returns first heading found before image
+  - **PPTX**: Uses slide_title from position metadata
+  - Handles documents without headings (returns None)
+  - Style validation with None checks
+
+#### Task 1.5.5: Extract Local Context (Surrounding Paragraphs) ✅
+- Implemented `_extract_local_context()` method
+- Implemented `_extract_docx_local_context()` method
+- Implemented `_extract_pptx_local_context()` method
+- Features:
+  - **DOCX**: Configurable N paragraphs before/after (default 2)
+  - Skips the image paragraph itself
+  - Skips empty paragraphs
+  - Concatenates with space separator
+  - Handles edge cases (start/end of document)
+  - **PPTX**: Extracts all text from slide shapes
+  - Default fallback text when no context available
+
+#### Task 1.5.6: Implement Context Merging with Truncation ✅
+- Context merging implemented in `ContextData.get_merged_context()`
+- Features:
+  - Combines all 5 context levels with clear separators
+  - Separator format: `[Level: content] | [Level: content]`
+  - Priority order: External > Document > Section > Page > Local
+  - Smart truncation to max token limit (default 12,000 chars)
+  - Adds ellipsis ("...") when truncated
+  - Handles Optional fields gracefully
+
+### Files Created (2 total)
+
+**Source Code (1 file):**
+1. `src/ada_annotator/utils/context_extractor.py` - Complete context extraction (520 lines)
+
+**Tests (1 file):**
+2. `tests/unit/test_context_extractor.py` - Comprehensive test suite (582 lines)
+
+**Modified (1 file):**
+3. `src/ada_annotator/utils/__init__.py` - Added ContextExtractor export
+
+### Test Results
+
+```
+24/24 tests PASSED (100% success rate)
+
+Test Coverage:
+- ContextExtractor: 86% (exceeds 80% target)
+- Overall utils package: Well-covered
+
+Test Categories:
+- Initialization and validation: 4 tests
+- External context loading: 5 tests
+- Document context extraction: 3 tests
+- Section context extraction: 3 tests
+- Page context extraction: 2 tests
+- Local context extraction: 3 tests
+- Complete workflow: 2 tests
+- Context merging: 2 tests
+```
+
+### Implementation Details
+
+**5-Level Context Hierarchy:**
+1. **External Context**: User-provided context from .txt/.md files (highest priority)
+2. **Document Context**: Core properties (title, subject, author) from document metadata
+3. **Section Context**: Nearest heading (DOCX) or slide title (PPTX)
+4. **Page Context**: Slide title for PPTX only (DOCX has no page concept)
+5. **Local Context**: Surrounding text (paragraphs for DOCX, slide text for PPTX)
+
+**DOCX Context Extraction:**
+- Paragraph-based position system
+- Backward search for nearest Heading style
+- Configurable surrounding paragraph range (default ±2)
+- Skips empty paragraphs automatically
+
+**PPTX Context Extraction:**
+- Slide-based position system
+- Uses slide_title from ImageMetadata position dict
+- Extracts all text from shapes on the slide
+- Page context includes slide title
+
+**Error Handling:**
+- Graceful degradation (returns None or default text)
+- Comprehensive logging at all levels
+- No crashes on missing metadata or malformed documents
+- Validates file formats and content lengths
+
+**Integration Points:**
+- Uses `ImageMetadata` model (Phase 1.1)
+- Returns `ContextData` model (Phase 1.1)
+- Uses structured logging (Phase 1.1)
+- Works with DOCX/PPTX extractors (Phase 1.3-1.4)
+
+### Validation Checkpoint
+
+Phase 1.5 is **COMPLETE** and **VALIDATED**:
+- ✅ All code follows PEP 8 (79-char limit, 4-space indent)
+- ✅ All functions have type hints
+- ✅ All modules have docstrings (PEP 257)
+- ✅ ContextExtractor class implemented correctly
+- ✅ External context loading working (.txt and .md)
+- ✅ Document metadata extraction working (DOCX & PPTX)
+- ✅ Section context extraction working (headings for DOCX, slide titles for PPTX)
+- ✅ Page context extraction working (PPTX only)
+- ✅ Local context extraction working (surrounding text)
+- ✅ Context merging with truncation working
+- ✅ All 24 unit tests passing
+- ✅ 86% test coverage (exceeds 80% minimum)
+- ✅ Error handling for all edge cases
+- ✅ Structured logging integrated
+- ✅ Graceful degradation on missing data
+
+### Documentation
+
+Phase 1.5 summary complete with implementation details.
+
 ### Next Phase
 
-Ready to proceed to **Phase 1.5: Context Extraction** (Task 1.5.1-1.5.6)
+Ready to proceed to **Phase 1.6: Semantic Kernel Integration** (Task 1.6.1-1.6.5)
