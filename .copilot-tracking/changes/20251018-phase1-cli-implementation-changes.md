@@ -782,3 +782,152 @@ Phase 1.6 is **COMPLETE** and **VALIDATED**:
 ### Next Phase
 
 Ready to proceed to **Phase 1.7: Alt-Text Generation Orchestration** (Task 1.7.1-1.7.5)
+
+---
+
+## Phase 1.7: Alt-Text Generation Orchestration
+
+### Started: 2025-10-27
+
+## Phase 1.7 Implementation Complete
+
+### Date: 2025-10-27
+
+### Tasks Completed
+
+#### Task 1.7.1: Create AltTextGenerator Class Structure ✅
+- Created `src/ada_annotator/generators/alt_text_generator.py`
+- Implemented `AltTextGenerator` orchestrator class
+- Features:
+  - Dependency injection (Settings, AI service, context extractor)
+  - No hard dependencies
+  - Clean separation of concerns
+  - Structured logging integration
+- Class constants for validation rules and cost calculation
+- Type hints on all methods
+
+#### Task 1.7.2: Implement Prompt Engineering & Context Integration ✅
+- Context extraction integrated in `generate_for_image()`
+- Uses `ContextExtractor.extract_context_for_image()` from Phase 1.5
+- Calls `ContextData.get_merged_context()` for token-limited context
+- Passes merged context string to AI service
+- Graceful fallback to minimal context on extraction errors
+- Logs context extraction success/failure
+
+#### Task 1.7.3: Implement Alt-Text Validation & Quality Gates ✅
+- Created `_validate_alt_text()` method
+- Returns tuple: `(passed: bool, warnings: List[str])`
+- Created `_auto_correct_alt_text()` method
+- Validation rules:
+  - Length: 10-250 chars (hard), 50-200 preferred (warnings)
+  - Forbidden phrases: "image of", "picture of", "graphic showing", etc.
+  - Capitalization: must start uppercase (warning)
+  - Punctuation: should end with period (auto-corrected)
+- Auto-corrections: trim whitespace, collapse spaces, add period
+
+#### Task 1.7.4: Build AltTextResult Objects with Metadata ✅
+- Integrated in `generate_for_image()` method
+- Creates `AltTextResult` objects from Pydantic model
+- Tracks processing time with `time.time()` wrapper
+- Estimates token usage (4 chars per token)
+- Metadata tracked:
+  - image_id, alt_text, confidence_score (0.85 default)
+  - validation_passed, validation_warnings
+  - tokens_used, processing_time_seconds, timestamp
+
+#### Task 1.7.5: Integrate Error Handling & Retry Logic ✅
+- Context extraction errors: log warning, use fallback, continue
+- API errors: re-raise to caller (retry in SemanticKernelService)
+- Validation failures: record warnings, mark as failed if critical
+- Batch processing: `continue_on_error` flag for resilience
+- Progress callback support for batch operations
+
+### Additional Features
+
+#### Batch Processing Support
+- Implemented `generate_for_multiple_images()` method
+- Optional progress callback: `(current, total) -> None`
+- Continue-on-error support
+- Returns list of successful AltTextResult objects
+
+#### Cost Calculation
+- Implemented `_calculate_cost()` method
+- Azure OpenAI GPT-4o pricing ($2.50 input, $10.00 output per 1M tokens)
+- Estimated cost per image: $0.004 - $0.008
+
+### Files Created (3 total)
+
+**Source Code (2 files):**
+1. `src/ada_annotator/generators/__init__.py` - Package exports
+2. `src/ada_annotator/generators/alt_text_generator.py` - Main orchestrator (280 lines)
+
+**Tests (1 file):**
+3. `tests/unit/test_alt_text_generator.py` - Comprehensive test suite (510 lines, 28 tests)
+
+### Test Results
+
+```
+28/28 tests PASSED (100% success rate)
+
+Test Categories:
+- Initialization: 3 tests
+- Single image generation: 8 tests
+- Batch processing: 4 tests
+- Validation: 10 tests
+- Cost calculation: 3 tests
+
+Overall Project: 203/203 tests PASSED
+```
+
+### Test Coverage
+
+**Overall Project Coverage: 86%** (exceeds 80% target)
+**AltTextGenerator Coverage: 99%**
+
+### Integration Points
+
+1. **AI Services (Phase 1.6):**
+   - Uses `SemanticKernelService.generate_alt_text()`
+   - Retry logic handled by service layer
+
+2. **Context Extraction (Phase 1.5):**
+   - Uses `ContextExtractor.extract_context_for_image()`
+   - Graceful fallback on extraction errors
+
+3. **Data Models (Phase 1.1):**
+   - Consumes `ImageMetadata`, `ContextData`
+   - Produces `AltTextResult`
+
+4. **Configuration (Phase 1.1):**
+   - Uses `Settings` for configuration
+
+5. **Logging (Phase 1.1):**
+   - Structured logging for all operations
+
+6. **Error Handling (Phase 1.1):**
+   - Uses `APIError` exception hierarchy
+
+### Validation Checkpoint
+
+Phase 1.7 is **COMPLETE** and **VALIDATED**:
+- ✅ All code follows PEP 8 (100-char limit, 4-space indent)
+- ✅ All functions have type hints
+- ✅ All modules have docstrings (PEP 257)
+- ✅ AltTextGenerator class fully implemented
+- ✅ Context integration working
+- ✅ Validation rules implemented
+- ✅ Auto-correction working
+- ✅ Batch processing implemented
+- ✅ Error handling comprehensive
+- ✅ All 28 Phase 1.7 tests passing (100%)
+- ✅ Overall: 203 tests passing (100%)
+- ✅ 86% coverage (exceeds 80%)
+- ✅ Ready for CLI integration
+
+### Documentation
+
+- Created [`docs/phase_summaries/phase1.7_summary.md`](../../docs/phase_summaries/phase1.7_summary.md) - Phase summary
+
+### Next Phase
+
+Ready to proceed to **Phase 1.8+: CLI Integration & Document Output**
