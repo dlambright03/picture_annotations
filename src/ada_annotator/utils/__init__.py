@@ -6,6 +6,7 @@ from ada_annotator.utils.error_handler import (
     handle_error,
     with_error_handling,
 )
+from ada_annotator.utils.error_tracker import ErrorCategory, ErrorTracker
 from ada_annotator.utils.image_utils import (
     convert_image_to_base64,
     get_image_format,
@@ -16,6 +17,7 @@ from ada_annotator.utils.logging import (
     get_logger,
     setup_logging,
 )
+from ada_annotator.utils.report_generator import ReportGenerator
 from ada_annotator.utils.retry_handler import (
     RetryConfig,
     retry_with_exponential_backoff,
@@ -24,6 +26,9 @@ from ada_annotator.utils.retry_handler import (
 
 __all__ = [
     "ContextExtractor",
+    "ErrorCategory",
+    "ErrorTracker",
+    "ReportGenerator",
     "get_exit_code",
     "handle_error",
     "with_error_handling",

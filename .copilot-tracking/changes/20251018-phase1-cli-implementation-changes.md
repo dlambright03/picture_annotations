@@ -1454,4 +1454,197 @@ Phase 1.10 summary complete with implementation details.
 
 Ready to proceed to **Phase 1.2: CLI Argument Parsing** (if not already completed) or **Phase 1.11: Reporting and Logging** (Task 1.11.1-1.11.4)
 
+---
+
+## Phase 1.11: Reporting and Logging
+
+### Started: 2025-10-27
+
+### Tasks Completed
+
+#### Task 1.11.1: Create markdown report generator
+- Created `src/ada_annotator/utils/report_generator.py`
+- Implemented `ReportGenerator` class with methods:
+  - `generate_report()` - Create comprehensive markdown reports
+  - `_generate_statistics()` - Summary statistics section
+  - `_generate_images_table()` - Processed images table
+  - `_generate_errors_list()` - Failed images section
+  - `_generate_resource_usage()` - Token usage and costs
+  - `generate_summary()` - Brief console summary
+- Features:
+  - Header with metadata (input/output files, document type, timestamp)
+  - Summary statistics (total, success, failed, success rate, duration)
+  - Processed images table (image ID, alt-text, confidence, tokens)
+  - Alt-text truncation for long descriptions (60 chars max in table)
+  - Failed images list with error messages and page numbers
+  - Resource usage (total tokens, estimated cost, avg tokens per image)
+  - Handles edge cases (no images, no errors)
+  - Comprehensive error handling for IO failures
+- Tests: 13/13 passed
+
+#### Task 1.11.2: Track failed images with reasons
+- Created `src/ada_annotator/utils/error_tracker.py`
+- Implemented `ErrorTracker` class with:
+  - `ErrorCategory` enum (API, VALIDATION, FILE, PROCESSING, UNKNOWN)
+  - `track_error()` - Record errors with full details
+  - `get_errors()` - Retrieve all tracked errors
+  - `get_error_count()` - Get total error count
+  - `get_errors_by_category()` - Filter errors by category
+  - `get_category_counts()` - Count errors by category
+  - `has_errors()` - Check if any errors exist
+  - `clear()` - Clear all tracked errors
+- Features:
+  - Records image ID, error message, category, page, location
+  - Automatic structured logging of all errors
+  - Category-based error classification
+  - Safe copy of error list (prevents external modification)
+  - Comprehensive tracking for reporting
+- Tests: 17/17 passed
+
+#### Task 1.11.3: Generate processing summary statistics
+- Integrated into `ReportGenerator` class
+- Statistics generated:
+  - Total images found
+  - Successfully processed count
+  - Failed count
+  - Success rate percentage
+  - Processing duration
+  - Total tokens used
+  - Estimated cost in USD
+  - Average tokens per image
+- All statistics included in markdown reports
+- Brief summary for console output
+
+#### Task 1.11.4: Implement structured JSON logging
+- Already implemented in Phase 1.1 (Task 1.1.1)
+- Verified integration across all modules:
+  - JSON-formatted log entries ✓
+  - ISO timestamp format ✓
+  - Correlation ID support ✓
+  - Log levels used appropriately ✓
+  - Exception rendering ✓
+  - File and console handlers ✓
+- `ErrorTracker` automatically logs all errors with structured logging
+- Ready for integration throughout application
+
+### Module Updates
+
+#### Updated `src/ada_annotator/utils/__init__.py`
+- Added exports for `ReportGenerator`
+- Added exports for `ErrorTracker` and `ErrorCategory`
+- All Phase 1.11 utilities now accessible via package imports
+
+### Test Coverage
+
+**Phase 1.11 Tests: 30/30 passed (100%)**
+- `test_report_generator.py`: 13 tests
+  - Report generation and file creation
+  - Header formatting
+  - Statistics section
+  - Images table with truncation
+  - Failed images section
+  - Resource usage section
+  - Edge cases (no images, no errors)
+  - IO error handling
+  - Summary string generation
+- `test_error_tracker.py`: 17 tests
+  - Basic error tracking
+  - Error with page numbers
+  - Error with location info
+  - Error with all fields
+  - Multiple errors
+  - Category filtering
+  - Category counts
+  - Enum values
+  - Default category
+  - Clear errors
+  - Copy safety
+  - Has errors checks
+  - Numeric page conversion
+  - Multi-category tracking
+
+**Overall Project Coverage**: 23% (1327 statements, 311 covered)
+- Phase 1.11 modules: 100% coverage
+  - `report_generator.py`: 70/70 statements (100%)
+  - `error_tracker.py`: 37/37 statements (100%)
+
+### Key Design Decisions
+
+1. **Markdown Report Format:**
+   - ✅ Human-readable and machine-parseable
+   - ✅ Easy to version control
+   - ✅ Can be converted to HTML/PDF
+   - ✅ Supports tables for structured data
+
+2. **Error Categorization:**
+   - ✅ Clear error categories for analysis
+   - ✅ Helps identify systemic issues
+   - ✅ Supports targeted improvements
+   - ✅ Enables better error reporting
+
+3. **Statistics Tracking:**
+   - ✅ Success rate percentage for quick assessment
+   - ✅ Token usage for cost tracking
+   - ✅ Processing time for performance monitoring
+   - ✅ Average metrics for optimization insights
+
+4. **Separation of Concerns:**
+   - ✅ `ReportGenerator` handles output formatting
+   - ✅ `ErrorTracker` handles error accumulation
+   - ✅ Models hold processing results
+   - ✅ Each module has single responsibility
+
+### Integration Points
+
+Phase 1.11 modules integrate with:
+- ✅ **Phase 1.1**: Uses Pydantic models (`DocumentProcessingResult`, `AltTextResult`)
+- ✅ **Phase 1.1**: Uses structured logging (`structlog`)
+- ✅ **Phase 1.2**: CLI will use `ReportGenerator` for output
+- ✅ **Phase 1.6-1.7**: AI service will use `ErrorTracker` for failures
+- ✅ **Phase 1.8**: Validation will contribute to error tracking
+- ✅ **Phase 1.9-1.10**: Assemblers will use error tracking
+
+### Validation Checkpoint
+
+Phase 1.11 is **COMPLETE** and **VALIDATED**:
+- ✅ All code follows PEP 8 (79-char limit, 4-space indent)
+- ✅ All functions have type hints
+- ✅ All modules have docstrings (PEP 257)
+- ✅ `ReportGenerator` fully implemented
+- ✅ `ErrorTracker` fully implemented
+- ✅ Markdown reports generated correctly
+- ✅ Error tracking with categorization
+- ✅ Statistics calculation accurate
+- ✅ All 30 Phase 1.11 tests passing (100%)
+- ✅ Overall: 271 tests passing (100%)
+- ✅ 100% coverage for Phase 1.11 modules
+- ✅ 23% overall coverage (increasing toward 80% target)
+- ✅ Error handling comprehensive
+- ✅ Structured logging integrated
+- ✅ Ready for integration with CLI and processing modules
+
+### Files Created
+
+```
+src/ada_annotator/utils/report_generator.py     (242 lines)
+src/ada_annotator/utils/error_tracker.py        (143 lines)
+tests/unit/test_report_generator.py             (383 lines)
+tests/unit/test_error_tracker.py                (258 lines)
+```
+
+### Files Modified
+
+```
+src/ada_annotator/utils/__init__.py             (Added exports)
+```
+
+### Next Steps
+
+Phase 1.11 complete. Ready for:
+- Phase 1.12: Testing (comprehensive test suite)
+- Phase 1.13: Documentation (README, SETUP_GUIDE, inline docs)
+- Integration with CLI (Phase 1.2) for complete workflow
+- Integration with processing modules for error tracking
+
+---
 
