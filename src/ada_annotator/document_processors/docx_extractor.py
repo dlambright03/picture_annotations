@@ -7,15 +7,12 @@ existing alt-text. Handles both inline and floating images.
 
 from io import BytesIO
 from pathlib import Path
-from typing import List, Optional
 
 from docx import Document
 from docx.oxml.ns import qn
 from PIL import Image
 
-from ada_annotator.document_processors.base_extractor import (
-    DocumentExtractor
-)
+from ada_annotator.document_processors.base_extractor import DocumentExtractor
 from ada_annotator.exceptions import ProcessingError
 from ada_annotator.models import ImageMetadata
 
@@ -46,9 +43,7 @@ class DOCXExtractor(DocumentExtractor):
 
         # Validate DOCX extension
         if document_path.suffix.lower() != ".docx":
-            raise ValueError(
-                f"Not a DOCX file: {document_path}"
-            )
+            raise ValueError(f"Not a DOCX file: {document_path}")
 
         # Load document
         try:
@@ -59,9 +54,7 @@ class DOCXExtractor(DocumentExtractor):
                 paragraph_count=len(self.document.paragraphs),
             )
         except Exception as e:
-            raise ProcessingError(
-                f"Failed to load DOCX: {e}"
-            ) from e
+            raise ProcessingError(f"Failed to load DOCX: {e}") from e
 
     def get_document_format(self) -> str:
         """
@@ -72,7 +65,7 @@ class DOCXExtractor(DocumentExtractor):
         """
         return "DOCX"
 
-    def extract_images(self) -> List[ImageMetadata]:
+    def extract_images(self) -> list[ImageMetadata]:
         """
         Extract all images from DOCX document.
 
@@ -115,11 +108,9 @@ class DOCXExtractor(DocumentExtractor):
                 "extraction_failed",
                 error=str(e),
             )
-            raise ProcessingError(
-                f"Failed to extract images: {e}"
-            ) from e
+            raise ProcessingError(f"Failed to extract images: {e}") from e
 
-    def _extract_inline_images(self) -> List[ImageMetadata]:
+    def _extract_inline_images(self) -> list[ImageMetadata]:
         """
         Extract inline images from paragraph runs.
 
@@ -131,18 +122,16 @@ class DOCXExtractor(DocumentExtractor):
         for para_idx, paragraph in enumerate(self.document.paragraphs):
             for run in paragraph.runs:
                 # Find inline shapes (images) in run
-                inline_shapes = run._element.xpath('.//a:blip')
+                inline_shapes = run._element.xpath(".//a:blip")
 
                 for blip in inline_shapes:
                     try:
                         # Extract image from relationship
-                        rId = blip.get(qn('r:embed'))
+                        rId = blip.get(qn("r:embed"))
                         if not rId:
                             continue
 
-                        image_part = (
-                            self.document.part.related_parts.get(rId)
-                        )
+                        image_part = self.document.part.related_parts.get(rId)
                         if not image_part:
                             continue
 
@@ -151,23 +140,17 @@ class DOCXExtractor(DocumentExtractor):
 
                         # Get image format from content type
                         content_type = image_part.content_type
-                        format_str = (
-                            content_type.split('/')[-1].upper()
-                        )
+                        format_str = content_type.split("/")[-1].upper()
 
                         # Normalize format names
-                        if format_str == "JPEG":
-                            format_str = "JPEG"
-                        elif format_str == "JPG":
+                        if format_str == "JPEG" or format_str == "JPG":
                             format_str = "JPEG"
 
                         # Load with PIL to get dimensions
                         img = Image.open(BytesIO(image_bytes))
 
                         # Extract existing alt-text
-                        alt_text = self._extract_alt_text_from_blip(
-                            blip
-                        )
+                        alt_text = self._extract_alt_text_from_blip(blip)
 
                         # Create position metadata
                         position = {
@@ -179,9 +162,7 @@ class DOCXExtractor(DocumentExtractor):
                         image_id = f"para{para_idx}_img{len(images)}"
                         metadata = ImageMetadata(
                             image_id=image_id,
-                            filename=(
-                                f"{image_id}.{format_str.lower()}"
-                            ),
+                            filename=(f"{image_id}.{format_str.lower()}"),
                             format=format_str,
                             size_bytes=len(image_bytes),
                             width_pixels=img.width,
@@ -211,7 +192,7 @@ class DOCXExtractor(DocumentExtractor):
 
         return images
 
-    def _extract_floating_images(self) -> List[ImageMetadata]:
+    def _extract_floating_images(self) -> list[ImageMetadata]:
         """
         Extract floating/anchored images.
 
@@ -223,22 +204,20 @@ class DOCXExtractor(DocumentExtractor):
         # Iterate through all drawing elements in document
         for para_idx, paragraph in enumerate(self.document.paragraphs):
             # Find drawing (floating) elements
-            drawings = paragraph._element.xpath('.//w:drawing')
+            drawings = paragraph._element.xpath(".//w:drawing")
 
             for drawing in drawings:
                 try:
                     # Find blip (image reference) in drawing
-                    blips = drawing.xpath('.//a:blip')
+                    blips = drawing.xpath(".//a:blip")
 
                     for blip in blips:
                         # Extract image from relationship
-                        rId = blip.get(qn('r:embed'))
+                        rId = blip.get(qn("r:embed"))
                         if not rId:
                             continue
 
-                        image_part = (
-                            self.document.part.related_parts.get(rId)
-                        )
+                        image_part = self.document.part.related_parts.get(rId)
                         if not image_part:
                             continue
 
@@ -247,9 +226,7 @@ class DOCXExtractor(DocumentExtractor):
 
                         # Get image format
                         content_type = image_part.content_type
-                        format_str = (
-                            content_type.split('/')[-1].upper()
-                        )
+                        format_str = content_type.split("/")[-1].upper()
 
                         # Normalize format
                         if format_str in ["JPG", "JPEG"]:
@@ -259,9 +236,7 @@ class DOCXExtractor(DocumentExtractor):
                         img = Image.open(BytesIO(image_bytes))
 
                         # Extract alt-text
-                        alt_text = self._extract_alt_text_from_blip(
-                            blip
-                        )
+                        alt_text = self._extract_alt_text_from_blip(blip)
 
                         # Create position metadata
                         position = {
@@ -270,14 +245,10 @@ class DOCXExtractor(DocumentExtractor):
                         }
 
                         # Create ImageMetadata
-                        image_id = (
-                            f"para{para_idx}_float{len(images)}"
-                        )
+                        image_id = f"para{para_idx}_float{len(images)}"
                         metadata = ImageMetadata(
                             image_id=image_id,
-                            filename=(
-                                f"{image_id}.{format_str.lower()}"
-                            ),
+                            filename=(f"{image_id}.{format_str.lower()}"),
                             format=format_str,
                             size_bytes=len(image_bytes),
                             width_pixels=img.width,
@@ -307,7 +278,7 @@ class DOCXExtractor(DocumentExtractor):
 
         return images
 
-    def _extract_alt_text_from_blip(self, blip) -> Optional[str]:
+    def _extract_alt_text_from_blip(self, blip) -> str | None:
         """
         Extract existing alt-text from image element.
 
@@ -321,24 +292,24 @@ class DOCXExtractor(DocumentExtractor):
             # Try to find docPr (document properties) element
             # which contains title/description
             doc_pr_elements = blip.xpath(
-                'ancestor::wp:inline/wp:docPr | '
-                'ancestor::wp:anchor/wp:docPr',
+                "ancestor::wp:inline/wp:docPr | "
+                "ancestor::wp:anchor/wp:docPr",
                 namespaces={
-                    'wp': (
-                        'http://schemas.openxmlformats.org/'
-                        'drawingml/2006/wordprocessingDrawing'
+                    "wp": (
+                        "http://schemas.openxmlformats.org/"
+                        "drawingml/2006/wordprocessingDrawing"
                     )
-                }
+                },
             )
 
             for doc_pr in doc_pr_elements:
                 # Check for title attribute
-                title = doc_pr.get('title')
+                title = doc_pr.get("title")
                 if title:
                     return title
 
                 # Check for descr attribute
-                descr = doc_pr.get('descr')
+                descr = doc_pr.get("descr")
                 if descr:
                     return descr
 

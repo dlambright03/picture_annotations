@@ -61,21 +61,24 @@ AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o
 AZURE_OPENAI_API_VERSION=2024-02-15-preview
 ```
 
-4. **Activate virtual environment:**
-```powershell
-# Windows
-.\.venv\Scripts\Activate.ps1
-
-# macOS/Linux
-source .venv/bin/activate
-```
-
-5. **Process your first document:**
+4. **Process your first document:**
 ```bash
-python -m ada_annotator.cli \
+# Using uv with the annotate command (simplest)
+uv run annotate --input tests/fixtures/documents/sample.docx --output output.docx --log-level INFO
+
+# Or using the full module path
+uv run python -m ada_annotator.cli \
     --input tests/fixtures/documents/sample.docx \
     --output output.docx \
     --log-level INFO
+
+# Or activate virtual environment first, then use the command directly
+# Windows
+.\.venv\Scripts\Activate.ps1
+# macOS/Linux
+source .venv/bin/activate
+
+annotate --input tests/fixtures/documents/sample.docx --output output.docx --log-level INFO
 ```
 
 See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed setup instructions and troubleshooting.
@@ -87,42 +90,42 @@ See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed setup instructions and trouble
 The primary interface for Phase 1 is the command-line tool:
 
 ```bash
-# Basic usage - process a DOCX file
-python -m ada_annotator.cli --input document.docx --output annotated.docx
+# Basic usage - process a DOCX file (using uv)
+uv run annotate --input document.docx --output annotated.docx
 
 # Process a PowerPoint presentation
-python -m ada_annotator.cli --input presentation.pptx --output annotated.pptx
+uv run annotate --input presentation.pptx --output annotated.pptx
 
 # Use external context file for better descriptions
-python -m ada_annotator.cli \
+uv run annotate \
     --input document.docx \
     --output annotated.docx \
     --context course_syllabus.txt
 
 # Dry-run mode (extract images and preview without generating alt-text)
-python -m ada_annotator.cli \
-    --input document.docx \
-    --dry-run
+uv run annotate --input document.docx --dry-run
 
 # Limit processing to first 5 images (for testing)
-python -m ada_annotator.cli \
+uv run annotate \
     --input document.docx \
     --output annotated.docx \
     --max-images 5
 
 # Enable verbose logging
-python -m ada_annotator.cli \
+uv run annotate \
     --input document.docx \
     --output annotated.docx \
     --log-level DEBUG
 ```
+
+**Note:** `uv run annotate` automatically uses the project's virtual environment. You can also activate the virtual environment and use `annotate` directly.
 
 ### Common Workflows
 
 **1. Quick Test with Sample Document:**
 ```bash
 # Process sample document with debug logging
-python -m ada_annotator.cli \
+uv run annotate \
     --input tests/fixtures/documents/sample.docx \
     --output output/annotated.docx \
     --log-level DEBUG
@@ -132,14 +135,14 @@ python -m ada_annotator.cli \
 ```bash
 # Process all DOCX files in a directory (using PowerShell)
 Get-ChildItem *.docx | ForEach-Object {
-    python -m ada_annotator.cli --input $_.Name --output "output/$($_.Name)"
+    uv run annotate --input $_.Name --output "output/$($_.Name)"
 }
 ```
 
 **3. Educational Content with Context:**
 ```bash
 # Include course context for better descriptions
-python -m ada_annotator.cli \
+uv run annotate \
     --input lecture_notes.docx \
     --output annotated_lecture.docx \
     --context course_context.md \

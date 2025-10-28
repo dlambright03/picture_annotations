@@ -7,15 +7,13 @@ effects.
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 from pptx.oxml.ns import qn
 
-from ada_annotator.document_processors.base_assembler import (
-    DocumentAssembler
-)
+from ada_annotator.document_processors.base_assembler import DocumentAssembler
 from ada_annotator.exceptions import ProcessingError
 from ada_annotator.models import AltTextResult
 
@@ -50,9 +48,7 @@ class PPTXAssembler(DocumentAssembler):
 
         # Validate PPTX extension
         if input_path.suffix.lower() != ".pptx":
-            raise ValueError(
-                f"Not a PPTX file: {input_path}"
-            )
+            raise ValueError(f"Not a PPTX file: {input_path}")
 
         try:
             self.presentation = Presentation(str(input_path))
@@ -66,9 +62,8 @@ class PPTXAssembler(DocumentAssembler):
             ) from e
 
     def apply_alt_text(
-        self,
-        alt_text_results: List[AltTextResult]
-    ) -> Dict[str, str]:
+        self, alt_text_results: list[AltTextResult]
+    ) -> dict[str, str]:
         """
         Apply alt-text to images in PPTX presentation.
 
@@ -111,9 +106,7 @@ class PPTXAssembler(DocumentAssembler):
                     error=str(e),
                 )
 
-        success_count = sum(
-            1 for s in status_map.values() if s == "success"
-        )
+        success_count = sum(1 for s in status_map.values() if s == "success")
         self.logger.info(
             "alt_text_application_complete",
             success_count=success_count,
@@ -122,10 +115,7 @@ class PPTXAssembler(DocumentAssembler):
 
         return status_map
 
-    def _apply_alt_text_to_image(
-        self,
-        result: AltTextResult
-    ) -> str:
+    def _apply_alt_text_to_image(self, result: AltTextResult) -> str:
         """
         Apply alt-text to a single image.
 
@@ -151,17 +141,13 @@ class PPTXAssembler(DocumentAssembler):
         slide = self.presentation.slides[slide_idx]
 
         # Find the picture shape
-        shape = self._find_picture_shape(
-            slide, slide_idx, shape_idx
-        )
+        shape = self._find_picture_shape(slide, slide_idx, shape_idx)
 
         if shape is None:
             return "failed: picture shape not found"
 
         # Apply alt-text to shape
-        success = self._set_alt_text_on_shape(
-            shape, result.alt_text
-        )
+        success = self._set_alt_text_on_shape(shape, result.alt_text)
 
         if success:
             return "success"
@@ -169,10 +155,7 @@ class PPTXAssembler(DocumentAssembler):
             return "failed: could not set alt-text"
 
     def _find_picture_shape(
-        self,
-        slide,
-        slide_idx: int,
-        shape_idx: int
+        self, slide, slide_idx: int, shape_idx: int
     ) -> Optional:
         """
         Find picture shape on slide by index.
@@ -204,11 +187,7 @@ class PPTXAssembler(DocumentAssembler):
 
         return None
 
-    def _set_alt_text_on_shape(
-        self,
-        shape,
-        alt_text: str
-    ) -> bool:
+    def _set_alt_text_on_shape(self, shape, alt_text: str) -> bool:
         """
         Set alt-text on picture shape.
 
@@ -224,30 +203,30 @@ class PPTXAssembler(DocumentAssembler):
         """
         try:
             # Method 1: Set shape name (visible in PowerPoint UI)
-            if hasattr(shape, 'name'):
+            if hasattr(shape, "name"):
                 shape.name = alt_text
 
             # Method 2: Set XML attributes in cNvPr element
             # This is the standard location for alt-text
-            if hasattr(shape, '_element'):
+            if hasattr(shape, "_element"):
                 # Find cNvPr element (non-visual picture properties)
                 try:
                     # Path: p:sp/p:nvSpPr/p:cNvPr or
                     # p:pic/p:nvPicPr/p:cNvPr
-                    nv_pr = shape._element.find(
-                        './/' + qn('p:cNvPr')
-                    )
+                    nv_pr = shape._element.find(".//" + qn("p:cNvPr"))
 
                     if nv_pr is not None:
                         # Set both title and descr for compatibility
-                        nv_pr.set('title', alt_text)
-                        nv_pr.set('descr', alt_text)
+                        nv_pr.set("title", alt_text)
+                        nv_pr.set("descr", alt_text)
 
                         self.logger.debug(
                             "xml_alt_text_set",
-                            shape_name=shape.name if hasattr(
-                                shape, 'name'
-                            ) else "unknown",
+                            shape_name=(
+                                shape.name
+                                if hasattr(shape, "name")
+                                else "unknown"
+                            ),
                             alt_text_length=len(alt_text),
                         )
 
@@ -310,4 +289,3 @@ class PPTXAssembler(DocumentAssembler):
             return len(self.presentation.slides) > 0
         except Exception:
             return False
-

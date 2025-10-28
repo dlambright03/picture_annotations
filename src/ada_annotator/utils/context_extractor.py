@@ -10,7 +10,6 @@ Implements a hierarchical context extraction system with 5 levels:
 """
 
 from pathlib import Path
-from typing import List, Optional, Union
 
 from docx import Document as DocxDocument
 from pptx import Presentation
@@ -28,9 +27,7 @@ class ContextExtractor:
     """
 
     def __init__(
-        self,
-        document_path: Path,
-        external_context_path: Optional[Path] = None
+        self, document_path: Path, external_context_path: Path | None = None
     ):
         """
         Initialize context extractor.
@@ -65,9 +62,7 @@ class ContextExtractor:
             self.pptx_document = Presentation(str(document_path))
             self.document_type = "PPTX"
         else:
-            raise ValueError(
-                f"Unsupported document format: {suffix}"
-            )
+            raise ValueError(f"Unsupported document format: {suffix}")
 
         self.logger.info(
             "context_extractor_initialized",
@@ -76,8 +71,7 @@ class ContextExtractor:
         )
 
     def extract_context_for_image(
-        self,
-        image_metadata: ImageMetadata
+        self, image_metadata: ImageMetadata
     ) -> ContextData:
         """
         Extract complete hierarchical context for an image.
@@ -92,17 +86,13 @@ class ContextExtractor:
         document_context = self._extract_document_context()
 
         # Extract section context
-        section_context = self._extract_section_context(
-            image_metadata
-        )
+        section_context = self._extract_section_context(image_metadata)
 
         # Extract page context (PPTX only)
         page_context = self._extract_page_context(image_metadata)
 
         # Extract local context
-        local_context = self._extract_local_context(
-            image_metadata
-        )
+        local_context = self._extract_local_context(image_metadata)
 
         context_data = ContextData(
             external_context=self.external_context,
@@ -123,9 +113,7 @@ class ContextExtractor:
 
         return context_data
 
-    def _load_external_context(
-        self, context_path: Path
-    ) -> Optional[str]:
+    def _load_external_context(self, context_path: Path) -> str | None:
         """
         Load external context from text or markdown file.
 
@@ -146,7 +134,7 @@ class ContextExtractor:
                 return None
 
             # Read file
-            with open(context_path, "r", encoding="utf-8") as f:
+            with open(context_path, encoding="utf-8") as f:
                 content = f.read().strip()
 
             # Validate content length (max 10000 chars)
@@ -234,9 +222,8 @@ class ContextExtractor:
             return f"{self.document_type} document"
 
     def _extract_section_context(
-        self,
-        image_metadata: ImageMetadata
-    ) -> Optional[str]:
+        self, image_metadata: ImageMetadata
+    ) -> str | None:
         """
         Extract section context (nearest heading before image).
 
@@ -250,18 +237,13 @@ class ContextExtractor:
             Optional[str]: Section heading text, or None.
         """
         if self.document_type == "DOCX":
-            return self._extract_docx_section_context(
-                image_metadata
-            )
+            return self._extract_docx_section_context(image_metadata)
         else:  # PPTX
-            return self._extract_pptx_section_context(
-                image_metadata
-            )
+            return self._extract_pptx_section_context(image_metadata)
 
     def _extract_docx_section_context(
-        self,
-        image_metadata: ImageMetadata
-    ) -> Optional[str]:
+        self, image_metadata: ImageMetadata
+    ) -> str | None:
         """
         Find nearest heading before image in DOCX document.
 
@@ -273,17 +255,18 @@ class ContextExtractor:
         """
         try:
             # Get paragraph index from position metadata
-            para_index = image_metadata.position.get(
-                "paragraph_index", 0
-            )
+            para_index = image_metadata.position.get("paragraph_index", 0)
 
             # Search backwards from image paragraph
             for i in range(para_index - 1, -1, -1):
                 para = self.docx_document.paragraphs[i]  # type: ignore
 
                 # Check if paragraph is a heading
-                if para.style and para.style.name and \
-                   para.style.name.startswith("Heading"):
+                if (
+                    para.style
+                    and para.style.name
+                    and para.style.name.startswith("Heading")
+                ):
                     heading_text = para.text.strip()
                     if heading_text:
                         self.logger.debug(
@@ -306,9 +289,8 @@ class ContextExtractor:
             return None
 
     def _extract_pptx_section_context(
-        self,
-        image_metadata: ImageMetadata
-    ) -> Optional[str]:
+        self, image_metadata: ImageMetadata
+    ) -> str | None:
         """
         Get slide title as section context for PPTX.
 
@@ -327,9 +309,8 @@ class ContextExtractor:
             return None
 
     def _extract_page_context(
-        self,
-        image_metadata: ImageMetadata
-    ) -> Optional[str]:
+        self, image_metadata: ImageMetadata
+    ) -> str | None:
         """
         Extract page/slide context.
 
@@ -354,7 +335,7 @@ class ContextExtractor:
         self,
         image_metadata: ImageMetadata,
         paragraphs_before: int = 2,
-        paragraphs_after: int = 2
+        paragraphs_after: int = 2,
     ) -> str:
         """
         Extract local context (surrounding paragraphs).
@@ -369,20 +350,16 @@ class ContextExtractor:
         """
         if self.document_type == "DOCX":
             return self._extract_docx_local_context(
-                image_metadata,
-                paragraphs_before,
-                paragraphs_after
+                image_metadata, paragraphs_before, paragraphs_after
             )
         else:  # PPTX
-            return self._extract_pptx_local_context(
-                image_metadata
-            )
+            return self._extract_pptx_local_context(image_metadata)
 
     def _extract_docx_local_context(
         self,
         image_metadata: ImageMetadata,
         paragraphs_before: int,
-        paragraphs_after: int
+        paragraphs_after: int,
     ) -> str:
         """
         Extract surrounding paragraphs in DOCX.
@@ -397,15 +374,13 @@ class ContextExtractor:
         """
         try:
             # Get paragraph index from position metadata
-            para_index = image_metadata.position.get(
-                "paragraph_index", 0
-            )
+            para_index = image_metadata.position.get("paragraph_index", 0)
 
             # Calculate range
             start_idx = max(0, para_index - paragraphs_before)
             end_idx = min(
                 len(self.docx_document.paragraphs),  # type: ignore
-                para_index + paragraphs_after + 1
+                para_index + paragraphs_after + 1,
             )
 
             # Collect paragraph text
@@ -447,8 +422,7 @@ class ContextExtractor:
             return "No surrounding text available."
 
     def _extract_pptx_local_context(
-        self,
-        image_metadata: ImageMetadata
+        self, image_metadata: ImageMetadata
     ) -> str:
         """
         Extract text from slide for PPTX local context.

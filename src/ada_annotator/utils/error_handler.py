@@ -6,19 +6,19 @@ management.
 """
 
 import sys
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable, TypeVar, cast
+from typing import TypeVar, cast
 
 import structlog
 
 from ada_annotator.exceptions import (
-    ADAAnnotatorError,
-    APIError,
     EXIT_API_ERROR,
     EXIT_GENERAL_ERROR,
     EXIT_INPUT_ERROR,
-    EXIT_SUCCESS,
     EXIT_VALIDATION_ERROR,
+    ADAAnnotatorError,
+    APIError,
     FileError,
     ProcessingError,
     ValidationError,
@@ -102,13 +102,14 @@ def with_error_handling(func: F) -> F:
     Returns:
         Decorated function with error handling.
     """
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
         except ADAAnnotatorError as e:
             handle_error(e, exit_on_error=True)
-        except Exception as e:
+        except Exception:
             logger.exception("unexpected_error", exc_info=True)
             sys.exit(EXIT_GENERAL_ERROR)
 

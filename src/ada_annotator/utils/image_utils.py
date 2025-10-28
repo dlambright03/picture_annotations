@@ -6,7 +6,6 @@ Provides image conversion, validation, and format detection functions.
 
 import base64
 from pathlib import Path
-from typing import Union
 
 from PIL import Image
 
@@ -16,7 +15,7 @@ logger = get_logger(__name__)
 
 
 def convert_image_to_base64(
-    image_path: Union[str, Path], include_prefix: bool = False
+    image_path: str | Path, include_prefix: bool = False
 ) -> str:
     """
     Convert an image file to base64 encoded string.
@@ -75,7 +74,7 @@ def convert_image_to_base64(
         ) from e
 
 
-def get_image_format(image_path: Union[str, Path]) -> str:
+def get_image_format(image_path: str | Path) -> str:
     """
     Detect the format of an image file.
 
@@ -107,7 +106,7 @@ def get_image_format(image_path: Union[str, Path]) -> str:
         raise ValueError(f"Invalid image file: {image_path}") from e
 
 
-def validate_image_file(image_path: Union[str, Path]) -> bool:
+def validate_image_file(image_path: str | Path) -> bool:
     """
     Validate that a file is a valid image.
 

@@ -6,7 +6,6 @@ error information for reporting.
 """
 
 from enum import Enum
-from typing import Dict, List, Optional
 
 import structlog
 
@@ -40,15 +39,15 @@ class ErrorTracker:
 
     def __init__(self) -> None:
         """Initialize error tracker."""
-        self._errors: List[Dict[str, str]] = []
+        self._errors: list[dict[str, str]] = []
 
     def track_error(
         self,
         image_id: str,
         error_message: str,
         category: ErrorCategory = ErrorCategory.UNKNOWN,
-        page: Optional[str] = None,
-        location: Optional[str] = None,
+        page: str | None = None,
+        location: str | None = None,
     ) -> None:
         """
         Track a processing error for an image.
@@ -84,7 +83,7 @@ class ErrorTracker:
             location=location,
         )
 
-    def get_errors(self) -> List[Dict[str, str]]:
+    def get_errors(self) -> list[dict[str, str]]:
         """
         Get all tracked errors.
 
@@ -103,9 +102,8 @@ class ErrorTracker:
         return len(self._errors)
 
     def get_errors_by_category(
-        self,
-        category: ErrorCategory
-    ) -> List[Dict[str, str]]:
+        self, category: ErrorCategory
+    ) -> list[dict[str, str]]:
         """
         Get errors filtered by category.
 
@@ -116,18 +114,19 @@ class ErrorTracker:
             List of errors matching the category.
         """
         return [
-            error for error in self._errors
+            error
+            for error in self._errors
             if error.get("category") == category.value
         ]
 
-    def get_category_counts(self) -> Dict[str, int]:
+    def get_category_counts(self) -> dict[str, int]:
         """
         Get count of errors by category.
 
         Returns:
             Dictionary mapping category names to counts.
         """
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
 
         for error in self._errors:
             category = error.get("category", ErrorCategory.UNKNOWN.value)

@@ -8,7 +8,6 @@ production-ready observability and debugging capabilities.
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict
 
 import structlog
 from structlog.processors import JSONRenderer
@@ -16,22 +15,20 @@ from structlog.stdlib import add_log_level, add_logger_name
 
 
 def setup_logging(
-    log_file: Path,
-    log_level: str = "INFO",
-    enable_console: bool = True
+    log_file: Path, log_level: str = "INFO", enable_console: bool = True
 ) -> None:
     """
     Configure structured JSON logging with file and console handlers.
-    
+
     Parameters:
         log_file (Path): Path to the log file.
         log_level (str): Logging level (DEBUG, INFO, WARNING, ERROR,
                         CRITICAL).
         enable_console (bool): Whether to enable console logging.
-    
+
     Returns:
         None
-    
+
     Raises:
         ValueError: If log_level is invalid.
         OSError: If log file cannot be created.
@@ -40,10 +37,10 @@ def setup_logging(
     numeric_level = getattr(logging, log_level.upper(), None)
     if not isinstance(numeric_level, int):
         raise ValueError(f"Invalid log level: {log_level}")
-    
+
     # Ensure log directory exists
     log_file.parent.mkdir(parents=True, exist_ok=True)
-    
+
     # Configure structlog processors
     structlog.configure(
         processors=[
@@ -60,14 +57,14 @@ def setup_logging(
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
-    
+
     # Configure root logger
     root_logger = logging.getLogger()
     root_logger.setLevel(numeric_level)
-    
+
     # Remove existing handlers
     root_logger.handlers.clear()
-    
+
     # Add file handler
     try:
         file_handler = logging.FileHandler(log_file, encoding="utf-8")
@@ -76,7 +73,7 @@ def setup_logging(
         root_logger.addHandler(file_handler)
     except OSError as e:
         raise OSError(f"Cannot create log file {log_file}: {e}") from e
-    
+
     # Add console handler if enabled
     if enable_console:
         console_handler = logging.StreamHandler(sys.stdout)
@@ -88,10 +85,10 @@ def setup_logging(
 def get_logger(name: str) -> structlog.BoundLogger:
     """
     Get a structured logger instance.
-    
+
     Parameters:
         name (str): Logger name (typically __name__).
-    
+
     Returns:
         structlog.BoundLogger: Configured logger instance.
     """
@@ -99,16 +96,15 @@ def get_logger(name: str) -> structlog.BoundLogger:
 
 
 def add_correlation_id(
-    logger: structlog.BoundLogger,
-    correlation_id: str
+    logger: structlog.BoundLogger, correlation_id: str
 ) -> structlog.BoundLogger:
     """
     Add correlation ID to logger context.
-    
+
     Parameters:
         logger (structlog.BoundLogger): Logger instance.
         correlation_id (str): Unique correlation ID for request tracing.
-    
+
     Returns:
         structlog.BoundLogger: Logger with correlation ID bound.
     """

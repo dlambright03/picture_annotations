@@ -79,7 +79,9 @@ def main() -> None:
 
     if uploaded_file is not None:
         st.success(f"✅ File uploaded: {uploaded_file.name}")
-        st.info("**Note:** Document processing not yet implemented. This is the UI skeleton.")
+        st.info(
+            "**Note:** Document processing not yet implemented. This is the UI skeleton."
+        )
 
         # Show file details
         col1, col2 = st.columns(2)
@@ -91,7 +93,9 @@ def main() -> None:
 
         # Placeholder for processing button
         if st.button("🚀 Process Document", type="primary", disabled=True):
-            st.warning("Document processing will be implemented in the next iteration.")
+            st.warning(
+                "Document processing will be implemented in the next iteration."
+            )
 
         # Placeholder for results
         st.header("📊 Results")

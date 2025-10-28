@@ -4,20 +4,18 @@ Semantic Kernel integration for AI-powered alt-text generation.
 Provides Azure OpenAI integration using Microsoft Semantic Kernel.
 """
 
-from typing import Optional
 
 from semantic_kernel import Kernel
+from semantic_kernel.connectors.ai.function_choice_behavior import (
+    FunctionChoiceBehavior,
+)
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.connectors.ai.open_ai.prompt_execution_settings.azure_chat_prompt_execution_settings import (  # noqa: E501
     AzureChatPromptExecutionSettings,
 )
-from semantic_kernel.connectors.ai.function_choice_behavior import (
-    FunctionChoiceBehavior,
-)
 from semantic_kernel.contents.chat_history import ChatHistory
 from semantic_kernel.contents.chat_message_content import ChatMessageContent
 from semantic_kernel.contents.image_content import ImageContent
-from semantic_kernel.contents.text_content import TextContent
 
 from ada_annotator.config import Settings
 from ada_annotator.exceptions import APIError
@@ -233,13 +231,9 @@ class SemanticKernelService:
             # Check if it's a rate limit or service error
             error_msg = str(e).lower()
             if "rate limit" in error_msg or "429" in error_msg:
-                raise APIError(
-                    "Rate limit exceeded", status_code=429
-                ) from e
+                raise APIError("Rate limit exceeded", status_code=429) from e
             elif "503" in error_msg or "unavailable" in error_msg:
-                raise APIError(
-                    "Service unavailable", status_code=503
-                ) from e
+                raise APIError("Service unavailable", status_code=503) from e
             else:
                 raise APIError(f"Alt-text generation failed: {e}") from e
 

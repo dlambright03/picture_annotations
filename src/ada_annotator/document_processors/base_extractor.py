@@ -7,7 +7,6 @@ functionality for image processing and metadata collection.
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List
 
 import structlog
 
@@ -39,14 +38,10 @@ class DocumentExtractor(ABC):
             ValueError: If document format is not supported.
         """
         if not document_path.exists():
-            raise FileNotFoundError(
-                f"Document not found: {document_path}"
-            )
+            raise FileNotFoundError(f"Document not found: {document_path}")
 
         if not document_path.is_file():
-            raise ValueError(
-                f"Path is not a file: {document_path}"
-            )
+            raise ValueError(f"Path is not a file: {document_path}")
 
         self.document_path = document_path
         self.logger = structlog.get_logger(__name__)
@@ -59,7 +54,7 @@ class DocumentExtractor(ABC):
         )
 
     @abstractmethod
-    def extract_images(self) -> List[ImageMetadata]:
+    def extract_images(self) -> list[ImageMetadata]:
         """
         Extract all images from the document.
 
@@ -90,7 +85,7 @@ class DocumentExtractor(ABC):
         """
         # Basic validation - can be overridden by subclasses
         return (
-            self.document_path.exists() and
-            self.document_path.is_file() and
-            self.document_path.stat().st_size > 0
+            self.document_path.exists()
+            and self.document_path.is_file()
+            and self.document_path.stat().st_size > 0
         )

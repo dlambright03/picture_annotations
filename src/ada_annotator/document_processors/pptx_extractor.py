@@ -8,15 +8,12 @@ information for output generation.
 
 from io import BytesIO
 from pathlib import Path
-from typing import List, Optional
 
 from PIL import Image
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
-from ada_annotator.document_processors.base_extractor import (
-    DocumentExtractor
-)
+from ada_annotator.document_processors.base_extractor import DocumentExtractor
 from ada_annotator.exceptions import ProcessingError
 from ada_annotator.models import ImageMetadata
 
@@ -47,9 +44,7 @@ class PPTXExtractor(DocumentExtractor):
 
         # Validate PPTX extension
         if document_path.suffix.lower() != ".pptx":
-            raise ValueError(
-                f"Not a PPTX file: {document_path}"
-            )
+            raise ValueError(f"Not a PPTX file: {document_path}")
 
         # Load presentation
         try:
@@ -60,9 +55,7 @@ class PPTXExtractor(DocumentExtractor):
                 slide_count=len(self.presentation.slides),
             )
         except Exception as e:
-            raise ProcessingError(
-                f"Failed to load PPTX: {e}"
-            ) from e
+            raise ProcessingError(f"Failed to load PPTX: {e}") from e
 
     def get_document_format(self) -> str:
         """
@@ -73,7 +66,7 @@ class PPTXExtractor(DocumentExtractor):
         """
         return "PPTX"
 
-    def extract_images(self) -> List[ImageMetadata]:
+    def extract_images(self) -> list[ImageMetadata]:
         """
         Extract all images from PPTX presentation.
 
@@ -96,9 +89,7 @@ class PPTXExtractor(DocumentExtractor):
 
         try:
             # Iterate through all slides
-            for slide_idx, slide in enumerate(
-                self.presentation.slides
-            ):
+            for slide_idx, slide in enumerate(self.presentation.slides):
                 # Extract slide title for context
                 slide_title = self._extract_slide_title(slide)
 
@@ -121,11 +112,9 @@ class PPTXExtractor(DocumentExtractor):
                 "extraction_failed",
                 error=str(e),
             )
-            raise ProcessingError(
-                f"Failed to extract images: {e}"
-            ) from e
+            raise ProcessingError(f"Failed to extract images: {e}") from e
 
-    def _extract_slide_title(self, slide) -> Optional[str]:
+    def _extract_slide_title(self, slide) -> str | None:
         """
         Extract title from slide for context.
 
@@ -146,11 +135,8 @@ class PPTXExtractor(DocumentExtractor):
             return None
 
     def _extract_images_from_slide(
-        self,
-        slide,
-        slide_idx: int,
-        slide_title: Optional[str]
-    ) -> List[ImageMetadata]:
+        self, slide, slide_idx: int, slide_title: str | None
+    ) -> list[ImageMetadata]:
         """
         Extract all images from a single slide.
 
@@ -197,12 +183,8 @@ class PPTXExtractor(DocumentExtractor):
         return images
 
     def _extract_image_from_shape(
-        self,
-        shape,
-        slide_idx: int,
-        shape_idx: int,
-        slide_title: Optional[str]
-    ) -> Optional[ImageMetadata]:
+        self, shape, slide_idx: int, shape_idx: int, slide_title: str | None
+    ) -> ImageMetadata | None:
         """
         Extract image metadata from a picture shape.
 
@@ -221,7 +203,7 @@ class PPTXExtractor(DocumentExtractor):
 
             # Get image format from content type
             content_type = shape.image.content_type
-            format_str = content_type.split('/')[-1].upper()
+            format_str = content_type.split("/")[-1].upper()
 
             # Normalize format names
             if format_str in ["JPG", "JPEG"]:
@@ -281,9 +263,7 @@ class PPTXExtractor(DocumentExtractor):
             )
             return None
 
-    def _extract_alt_text_from_shape(
-        self, shape
-    ) -> Optional[str]:
+    def _extract_alt_text_from_shape(self, shape) -> str | None:
         """
         Extract existing alt-text from picture shape.
 
@@ -295,36 +275,35 @@ class PPTXExtractor(DocumentExtractor):
         """
         try:
             # Check shape name (sometimes contains alt-text)
-            if hasattr(shape, 'name') and shape.name:
+            if hasattr(shape, "name") and shape.name:
                 name = shape.name.strip()
                 # Ignore default names like "Picture 1", "Image 2"
                 if not (
-                    name.startswith("Picture")
-                    or name.startswith("Image")
+                    name.startswith("Picture") or name.startswith("Image")
                 ):
                     return name
 
             # Check for title/description in shape element
-            if hasattr(shape, '_element'):
+            if hasattr(shape, "_element"):
                 # Try to find cNvPr (non-visual properties)
                 nvPr = shape._element.xpath(
-                    './/p:cNvPr',
+                    ".//p:cNvPr",
                     namespaces={
-                        'p': (
-                            'http://schemas.openxmlformats.org/'
-                            'presentationml/2006/main'
+                        "p": (
+                            "http://schemas.openxmlformats.org/"
+                            "presentationml/2006/main"
                         )
-                    }
+                    },
                 )
 
                 for prop in nvPr:
                     # Check for title attribute
-                    title = prop.get('title')
+                    title = prop.get("title")
                     if title and title.strip():
                         return title.strip()
 
                     # Check for descr attribute
-                    descr = prop.get('descr')
+                    descr = prop.get("descr")
                     if descr and descr.strip():
                         return descr.strip()
 

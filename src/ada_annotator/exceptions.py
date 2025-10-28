@@ -4,7 +4,6 @@ Custom exceptions for ADA Annotator.
 Defines the exception hierarchy for the application.
 """
 
-from typing import Optional
 
 
 class ADAAnnotatorError(Exception):
@@ -46,7 +45,7 @@ class APIError(ADAAnnotatorError):
         status_code: HTTP status code (optional)
     """
 
-    def __init__(self, message: str, status_code: Optional[int] = None):
+    def __init__(self, message: str, status_code: int | None = None):
         """
         Initialize API error with message and optional status code.
 
@@ -56,7 +55,6 @@ class APIError(ADAAnnotatorError):
         """
         super().__init__(message)
         self.status_code = status_code
-
 
 
 class ValidationError(ADAAnnotatorError):

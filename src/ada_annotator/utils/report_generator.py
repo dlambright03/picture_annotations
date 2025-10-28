@@ -7,7 +7,6 @@ including statistics, successful images, and failures.
 
 from datetime import datetime
 from pathlib import Path
-from typing import List
 
 from ada_annotator.models import (
     AltTextResult,
@@ -34,7 +33,7 @@ class ReportGenerator:
     def generate_report(
         self,
         result: DocumentProcessingResult,
-        alt_text_results: List[AltTextResult],
+        alt_text_results: list[AltTextResult],
         output_path: Path,
     ) -> None:
         """
@@ -51,21 +50,11 @@ class ReportGenerator:
         report_lines = []
 
         # Header
-        report_lines.append(
-            f"# ADA Annotator Processing Report\n"
-        )
-        report_lines.append(
-            f"\n**Generated**: {datetime.now().isoformat()}\n"
-        )
-        report_lines.append(
-            f"**Input File**: `{result.input_file}`\n"
-        )
-        report_lines.append(
-            f"**Output File**: `{result.output_file}`\n"
-        )
-        report_lines.append(
-            f"**Document Type**: {result.document_type}\n\n"
-        )
+        report_lines.append("# ADA Annotator Processing Report\n")
+        report_lines.append(f"\n**Generated**: {datetime.now().isoformat()}\n")
+        report_lines.append(f"**Input File**: `{result.input_file}`\n")
+        report_lines.append(f"**Output File**: `{result.output_file}`\n")
+        report_lines.append(f"**Document Type**: {result.document_type}\n\n")
 
         # Summary Statistics
         report_lines.append("## Summary Statistics\n\n")
@@ -74,9 +63,7 @@ class ReportGenerator:
         # Successful Images Table
         if alt_text_results:
             report_lines.append("\n## Processed Images\n\n")
-            report_lines.extend(
-                self._generate_images_table(alt_text_results)
-            )
+            report_lines.extend(self._generate_images_table(alt_text_results))
 
         # Failed Images
         if result.errors:
@@ -90,15 +77,14 @@ class ReportGenerator:
         # Write report
         try:
             output_path.write_text("".join(report_lines), encoding="utf-8")
-        except IOError as e:
-            raise IOError(
+        except OSError as e:
+            raise OSError(
                 f"Failed to write report to {output_path}: {e}"
             ) from e
 
     def _generate_statistics(
-        self,
-        result: DocumentProcessingResult
-    ) -> List[str]:
+        self, result: DocumentProcessingResult
+    ) -> list[str]:
         """
         Generate summary statistics section.
 
@@ -112,9 +98,7 @@ class ReportGenerator:
 
         success_rate = 0.0
         if result.total_images > 0:
-            success_rate = (
-                result.successful_images / result.total_images * 100
-            )
+            success_rate = result.successful_images / result.total_images * 100
 
         lines.append(f"- **Total Images**: {result.total_images}\n")
         lines.append(
@@ -130,9 +114,8 @@ class ReportGenerator:
         return lines
 
     def _generate_images_table(
-        self,
-        alt_text_results: List[AltTextResult]
-    ) -> List[str]:
+        self, alt_text_results: list[AltTextResult]
+    ) -> list[str]:
         """
         Generate table of processed images with alt-text.
 
@@ -164,9 +147,8 @@ class ReportGenerator:
         return lines
 
     def _generate_errors_list(
-        self,
-        result: DocumentProcessingResult
-    ) -> List[str]:
+        self, result: DocumentProcessingResult
+    ) -> list[str]:
         """
         Generate list of failed images with error reasons.
 
@@ -183,16 +165,13 @@ class ReportGenerator:
             error_message = error.get("error_message", "Unknown error")
             page = error.get("page", "N/A")
 
-            lines.append(
-                f"- **{image_id}** (Page {page}): {error_message}\n"
-            )
+            lines.append(f"- **{image_id}** (Page {page}): {error_message}\n")
 
         return lines
 
     def _generate_resource_usage(
-        self,
-        result: DocumentProcessingResult
-    ) -> List[str]:
+        self, result: DocumentProcessingResult
+    ) -> list[str]:
         """
         Generate resource usage section (tokens and costs).
 
@@ -208,25 +187,17 @@ class ReportGenerator:
             f"- **Total Tokens Used**: {result.total_tokens_used:,}\n"
         )
         lines.append(
-            f"- **Estimated Cost**: "
-            f"${result.estimated_cost_usd:.4f} USD\n"
+            f"- **Estimated Cost**: " f"${result.estimated_cost_usd:.4f} USD\n"
         )
 
         # Average tokens per image
         if result.successful_images > 0:
-            avg_tokens = (
-                result.total_tokens_used / result.successful_images
-            )
-            lines.append(
-                f"- **Average Tokens per Image**: {avg_tokens:.0f}\n"
-            )
+            avg_tokens = result.total_tokens_used / result.successful_images
+            lines.append(f"- **Average Tokens per Image**: {avg_tokens:.0f}\n")
 
         return lines
 
-    def generate_summary(
-        self,
-        result: DocumentProcessingResult
-    ) -> str:
+    def generate_summary(self, result: DocumentProcessingResult) -> str:
         """
         Generate brief summary string for console output.
 
@@ -238,9 +209,7 @@ class ReportGenerator:
         """
         success_rate = 0.0
         if result.total_images > 0:
-            success_rate = (
-                result.successful_images / result.total_images * 100
-            )
+            success_rate = result.successful_images / result.total_images * 100
 
         return (
             f"Processing complete: {result.successful_images}/"

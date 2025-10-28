@@ -6,14 +6,11 @@ preserving exact image positions and document structure.
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from docx import Document
 from docx.oxml.ns import qn
 
-from ada_annotator.document_processors.base_assembler import (
-    DocumentAssembler
-)
+from ada_annotator.document_processors.base_assembler import DocumentAssembler
 from ada_annotator.exceptions import ProcessingError
 from ada_annotator.models import AltTextResult
 
@@ -45,9 +42,7 @@ class DOCXAssembler(DocumentAssembler):
 
         # Validate DOCX extension
         if input_path.suffix.lower() != ".docx":
-            raise ValueError(
-                f"Not a DOCX file: {input_path}"
-            )
+            raise ValueError(f"Not a DOCX file: {input_path}")
 
         try:
             self.document = Document(str(input_path))
@@ -57,14 +52,11 @@ class DOCXAssembler(DocumentAssembler):
                 section_count=len(self.document.sections),
             )
         except Exception as e:
-            raise ProcessingError(
-                f"Failed to load DOCX document: {e}"
-            ) from e
+            raise ProcessingError(f"Failed to load DOCX document: {e}") from e
 
     def apply_alt_text(
-        self,
-        alt_text_results: List[AltTextResult]
-    ) -> Dict[str, str]:
+        self, alt_text_results: list[AltTextResult]
+    ) -> dict[str, str]:
         """
         Apply alt-text to images in DOCX document.
 
@@ -107,9 +99,7 @@ class DOCXAssembler(DocumentAssembler):
                     error=str(e),
                 )
 
-        success_count = sum(
-            1 for s in status_map.values() if s == "success"
-        )
+        success_count = sum(1 for s in status_map.values() if s == "success")
         self.logger.info(
             "alt_text_application_complete",
             success_count=success_count,
@@ -118,10 +108,7 @@ class DOCXAssembler(DocumentAssembler):
 
         return status_map
 
-    def _apply_alt_text_to_image(
-        self,
-        result: AltTextResult
-    ) -> str:
+    def _apply_alt_text_to_image(self, result: AltTextResult) -> str:
         """
         Apply alt-text to a single image.
 
@@ -155,10 +142,7 @@ class DOCXAssembler(DocumentAssembler):
         # (In practice, we'd need better matching logic)
         applied_count = 0
         for img_element in images_found:
-            if self._set_alt_text_on_element(
-                img_element,
-                result.alt_text
-            ):
+            if self._set_alt_text_on_element(img_element, result.alt_text):
                 applied_count += 1
 
         if applied_count > 0:
@@ -166,10 +150,7 @@ class DOCXAssembler(DocumentAssembler):
         else:
             return "failed: could not set alt-text"
 
-    def _find_images_in_paragraph(
-        self,
-        paragraph
-    ) -> List:
+    def _find_images_in_paragraph(self, paragraph) -> list:
         """
         Find all image elements in a paragraph.
 
@@ -185,24 +166,16 @@ class DOCXAssembler(DocumentAssembler):
         for run in paragraph.runs:
             # Look for inline shapes (pictures)
             # Use qn() for qualified names
-            inline_shapes = run._element.findall(
-                f'.//{qn("pic:pic")}'
-            )
+            inline_shapes = run._element.findall(f'.//{qn("pic:pic")}')
             images.extend(inline_shapes)
 
         # Find floating images (in paragraph)
-        floating_shapes = paragraph._element.findall(
-            f'.//{qn("pic:pic")}'
-        )
+        floating_shapes = paragraph._element.findall(f'.//{qn("pic:pic")}')
         images.extend(floating_shapes)
 
         return images
 
-    def _set_alt_text_on_element(
-        self,
-        img_element,
-        alt_text: str
-    ) -> bool:
+    def _set_alt_text_on_element(self, img_element, alt_text: str) -> bool:
         """
         Set alt-text on an image XML element.
 
@@ -217,41 +190,33 @@ class DOCXAssembler(DocumentAssembler):
             # Find cNvPr (non-visual properties) element
             # This contains title and descr attributes
             nvpicpr = img_element.find(
-                qn('pic:nvPicPr'),
-                namespaces=img_element.nsmap
+                qn("pic:nvPicPr"), namespaces=img_element.nsmap
             )
 
             if nvpicpr is None:
                 self.logger.warning(
                     "no_nvpicpr_element",
-                    message="Could not find nvPicPr element"
+                    message="Could not find nvPicPr element",
                 )
                 return False
 
-            cnvpr = nvpicpr.find(
-                qn('pic:cNvPr'),
-                namespaces=img_element.nsmap
-            )
+            cnvpr = nvpicpr.find(qn("pic:cNvPr"), namespaces=img_element.nsmap)
 
             if cnvpr is None:
                 self.logger.warning(
-                    "no_cnvpr_element",
-                    message="Could not find cNvPr element"
+                    "no_cnvpr_element", message="Could not find cNvPr element"
                 )
                 return False
 
             # Set both title and descr attributes
             # (Word uses descr, some tools use title)
-            cnvpr.set('title', alt_text)
-            cnvpr.set('descr', alt_text)
+            cnvpr.set("title", alt_text)
+            cnvpr.set("descr", alt_text)
 
             return True
 
         except Exception as e:
-            self.logger.warning(
-                "set_alt_text_failed",
-                error=str(e)
-            )
+            self.logger.warning("set_alt_text_failed", error=str(e))
             return False
 
     def save_document(self) -> None:
@@ -270,9 +235,7 @@ class DOCXAssembler(DocumentAssembler):
                 file_size_bytes=self.output_path.stat().st_size,
             )
         except Exception as e:
-            raise ProcessingError(
-                f"Failed to save DOCX document: {e}"
-            ) from e
+            raise ProcessingError(f"Failed to save DOCX document: {e}") from e
 
     def get_document_format(self) -> str:
         """

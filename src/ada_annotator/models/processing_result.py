@@ -6,7 +6,6 @@ Contains the complete result of processing a document.
 
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
 
 from pydantic import BaseModel, Field
 
@@ -14,10 +13,10 @@ from pydantic import BaseModel, Field
 class DocumentProcessingResult(BaseModel):
     """
     Complete result of processing a document.
-    
+
     Tracks all images processed, errors encountered, and resource
     usage for the entire document processing operation.
-    
+
     Attributes:
         input_file: Path to input document.
         output_file: Path to output document.
@@ -32,65 +31,45 @@ class DocumentProcessingResult(BaseModel):
         processing_duration_seconds: Total processing time.
         timestamp: When processing completed.
     """
-    
-    input_file: Path = Field(
-        ...,
-        description="Path to input document"
-    )
-    output_file: Path = Field(
-        ...,
-        description="Path to output document"
-    )
+
+    input_file: Path = Field(..., description="Path to input document")
+    output_file: Path = Field(..., description="Path to output document")
     document_type: str = Field(
-        ...,
-        description="Type of document (DOCX or PPTX)"
+        ..., description="Type of document (DOCX or PPTX)"
     )
     total_images: int = Field(
-        ...,
-        ge=0,
-        description="Total number of images found in document"
+        ..., ge=0, description="Total number of images found in document"
     )
     successful_images: int = Field(
-        0,
-        ge=0,
-        description="Number of images successfully processed"
+        0, ge=0, description="Number of images successfully processed"
     )
     failed_images: int = Field(
-        0,
-        ge=0,
-        description="Number of images that failed processing"
+        0, ge=0, description="Number of images that failed processing"
     )
-    images_processed: List[str] = Field(
+    images_processed: list[str] = Field(
         default_factory=list,
-        description="List of image IDs that were processed"
+        description="List of image IDs that were processed",
     )
-    errors: List[Dict[str, str]] = Field(
+    errors: list[dict[str, str]] = Field(
         default_factory=list,
-        description="List of errors (image_id, error_message)"
+        description="List of errors (image_id, error_message)",
     )
     total_tokens_used: int = Field(
-        0,
-        ge=0,
-        description="Total tokens consumed by all API calls"
+        0, ge=0, description="Total tokens consumed by all API calls"
     )
     estimated_cost_usd: float = Field(
-        0.0,
-        ge=0.0,
-        description="Estimated cost in USD"
+        0.0, ge=0.0, description="Estimated cost in USD"
     )
     processing_duration_seconds: float = Field(
-        0.0,
-        ge=0.0,
-        description="Total processing time in seconds"
+        0.0, ge=0.0, description="Total processing time in seconds"
     )
     timestamp: datetime = Field(
-        default_factory=datetime.now,
-        description="When processing completed"
+        default_factory=datetime.now, description="When processing completed"
     )
-    
+
     class Config:
         """Pydantic model configuration."""
-        
+
         json_schema_extra = {
             "example": {
                 "input_file": "report.docx",
@@ -99,16 +78,13 @@ class DocumentProcessingResult(BaseModel):
                 "total_images": 15,
                 "successful_images": 14,
                 "failed_images": 1,
-                "images_processed": [
-                    "img-001", "img-002", "img-003"
-                ],
+                "images_processed": ["img-001", "img-002", "img-003"],
                 "errors": [
-                    {"image_id": "img-015", 
-                     "error_message": "API timeout"}
+                    {"image_id": "img-015", "error_message": "API timeout"}
                 ],
                 "total_tokens_used": 18543,
                 "estimated_cost_usd": 0.37,
                 "processing_duration_seconds": 45.67,
-                "timestamp": "2025-01-18T10:35:22"
+                "timestamp": "2025-01-18T10:35:22",
             }
         }

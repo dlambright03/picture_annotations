@@ -83,7 +83,7 @@ Repository = "https://github.com/yourusername/ada-annotator"
 Issues = "https://github.com/yourusername/ada-annotator/issues"
 
 [project.scripts]
-ada-annotator = "ada_annotator.cli:main"
+annotate = "ada_annotator.cli:main"
 
 [build-system]
 requires = ["hatchling"]

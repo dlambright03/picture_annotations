@@ -8,15 +8,13 @@ Supports DOCX and PPTX formats with context-aware annotations.
 import argparse
 import sys
 from pathlib import Path
-from typing import Optional
 
 import structlog
 
 from ada_annotator import __version__
-from ada_annotator.config import get_settings
-from ada_annotator.exceptions import EXIT_SUCCESS, EXIT_INPUT_ERROR
+from ada_annotator.exceptions import EXIT_INPUT_ERROR, EXIT_SUCCESS
 from ada_annotator.utils.error_handler import handle_error
-from ada_annotator.utils.logging import setup_logging, get_logger
+from ada_annotator.utils.logging import get_logger, setup_logging
 
 
 def create_argument_parser() -> argparse.ArgumentParser:
@@ -117,7 +115,9 @@ def create_argument_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def validate_input_file(input_path: Path, logger: structlog.BoundLogger) -> None:
+def validate_input_file(
+    input_path: Path, logger: structlog.BoundLogger
+) -> None:
     """
     Validate input file exists and is a supported format.
 
@@ -160,7 +160,9 @@ def validate_input_file(input_path: Path, logger: structlog.BoundLogger) -> None
     )
 
 
-def validate_context_file(context_path: Path, logger: structlog.BoundLogger) -> None:
+def validate_context_file(
+    context_path: Path, logger: structlog.BoundLogger
+) -> None:
     """
     Validate context file exists and is a supported format.
 
@@ -201,7 +203,9 @@ def validate_context_file(context_path: Path, logger: structlog.BoundLogger) -> 
     )
 
 
-def validate_output_directory(output_path: Path, logger: structlog.BoundLogger) -> None:
+def validate_output_directory(
+    output_path: Path, logger: structlog.BoundLogger
+) -> None:
     """
     Validate output directory is writable.
 
@@ -225,8 +229,12 @@ def validate_output_directory(output_path: Path, logger: structlog.BoundLogger) 
         test_file.unlink()
         logger.debug("output_directory_writable", path=str(output_dir))
     except (PermissionError, OSError) as e:
-        logger.error("output_directory_not_writable", path=str(output_dir), error=str(e))
-        raise ValueError(f"Output directory is not writable: {output_dir}")
+        logger.error(
+            "output_directory_not_writable", path=str(output_dir), error=str(e)
+        )
+        raise ValueError(
+            f"Output directory is not writable: {output_dir}"
+        ) from e
 
 
 def generate_output_path(input_path: Path) -> Path:
@@ -248,7 +256,7 @@ def generate_output_path(input_path: Path) -> Path:
     return input_path.with_stem(f"{input_path.stem}_annotated")
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """
     Main entry point for the CLI.
 
@@ -263,12 +271,18 @@ def main(argv: Optional[list[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     # Setup logging
-    log_file = Path(args.log_file) if args.log_file else Path("ada_annotator.log")
+    log_file = (
+        Path(args.log_file) if args.log_file else Path("ada_annotator.log")
+    )
     log_level = "DEBUG" if args.verbose else args.log_level
     enable_console = args.verbose
 
     try:
-        setup_logging(log_file=log_file, log_level=log_level, enable_console=enable_console)
+        setup_logging(
+            log_file=log_file,
+            log_level=log_level,
+            enable_console=enable_console,
+        )
     except ValueError as e:
         print(f"Error: Invalid log level: {e}", file=sys.stderr)
         return EXIT_INPUT_ERROR
@@ -327,10 +341,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         print("[+] Arguments validated successfully")
 
         if not args.dry_run:
-            print(f"\nNext steps:")
+            print("\nNext steps:")
             print(f"  1. Extract images from {input_path.suffix.upper()}")
-            print(f"  2. Generate alt-text with AI")
-            print(f"  3. Apply annotations to output file")
+            print("  2. Generate alt-text with AI")
+            print("  3. Apply annotations to output file")
 
         logger.info("cli_completed", exit_code=EXIT_SUCCESS)
         return EXIT_SUCCESS
@@ -338,7 +352,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     except (FileNotFoundError, ValueError) as e:
         logger.error("validation_failed", error=str(e))
         print(f"\nError: {e}", file=sys.stderr)
-        print("\nRun 'ada-annotator --help' for usage information.", file=sys.stderr)
+        print(
+            "\nRun 'ada-annotator --help' for usage information.",
+            file=sys.stderr,
+        )
         return handle_error(e, exit_on_error=False)
 
     except Exception as e:

@@ -23,16 +23,24 @@ class Settings(BaseSettings):
     )
 
     # Application Settings
-    environment: Literal["development", "staging", "production"] = "development"
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    environment: Literal["development", "staging", "production"] = (
+        "development"
+    )
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = (
+        "INFO"
+    )
     debug_mode: bool = True
 
     # AI Service Configuration
     ai_service_type: Literal["azure_openai", "openai"] = "azure_openai"
 
     # Azure OpenAI Settings
-    azure_openai_endpoint: str = Field(default="", description="Azure OpenAI endpoint URL")
-    azure_openai_api_key: str = Field(default="", description="Azure OpenAI API key")
+    azure_openai_endpoint: str = Field(
+        default="", description="Azure OpenAI endpoint URL"
+    )
+    azure_openai_api_key: str = Field(
+        default="", description="Azure OpenAI API key"
+    )
     azure_openai_deployment_name: str = Field(
         default="", description="Azure OpenAI deployment name"
     )
@@ -42,7 +50,9 @@ class Settings(BaseSettings):
 
     # OpenAI Settings
     openai_api_key: str = Field(default="", description="OpenAI API key")
-    openai_model: str = Field(default="gpt-4o", description="OpenAI model name")
+    openai_model: str = Field(
+        default="gpt-4o", description="OpenAI model name"
+    )
 
     # AI Generation Settings
     ai_temperature: float = Field(default=0.3, ge=0.0, le=1.0)
@@ -86,24 +96,35 @@ class Settings(BaseSettings):
     @classmethod
     def validate_preferred_length(cls, v: int, info) -> int:
         """Ensure preferred length is less than max length."""
-        if "max_alt_text_length" in info.data and v > info.data["max_alt_text_length"]:
-            raise ValueError("preferred_alt_text_length must be <= max_alt_text_length")
+        if (
+            "max_alt_text_length" in info.data
+            and v > info.data["max_alt_text_length"]
+        ):
+            raise ValueError(
+                "preferred_alt_text_length must be <= max_alt_text_length"
+            )
         return v
 
     def validate_ai_config(self) -> None:
         """Validate that required AI service credentials are present."""
         if self.ai_service_type == "azure_openai":
             if not self.azure_openai_endpoint:
-                raise ValueError("AZURE_OPENAI_ENDPOINT is required for Azure OpenAI service")
+                raise ValueError(
+                    "AZURE_OPENAI_ENDPOINT is required for Azure OpenAI service"
+                )
             if not self.azure_openai_api_key:
-                raise ValueError("AZURE_OPENAI_API_KEY is required for Azure OpenAI service")
+                raise ValueError(
+                    "AZURE_OPENAI_API_KEY is required for Azure OpenAI service"
+                )
             if not self.azure_openai_deployment_name:
                 raise ValueError(
                     "AZURE_OPENAI_DEPLOYMENT_NAME is required for Azure OpenAI service"
                 )
         elif self.ai_service_type == "openai":
             if not self.openai_api_key:
-                raise ValueError("OPENAI_API_KEY is required for OpenAI service")
+                raise ValueError(
+                    "OPENAI_API_KEY is required for OpenAI service"
+                )
 
     @property
     def is_development(self) -> bool:
@@ -116,7 +137,7 @@ class Settings(BaseSettings):
         return self.environment == "production"
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     """
     Get cached application settings.

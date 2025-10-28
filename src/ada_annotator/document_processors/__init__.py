@@ -6,24 +6,12 @@ existing alt-text extraction. Also includes document assemblers
 for applying alt-text to output documents.
 """
 
-from ada_annotator.document_processors.base_assembler import (
-    DocumentAssembler
-)
-from ada_annotator.document_processors.base_extractor import (
-    DocumentExtractor
-)
-from ada_annotator.document_processors.docx_assembler import (
-    DOCXAssembler
-)
-from ada_annotator.document_processors.docx_extractor import (
-    DOCXExtractor
-)
-from ada_annotator.document_processors.pptx_assembler import (
-    PPTXAssembler
-)
-from ada_annotator.document_processors.pptx_extractor import (
-    PPTXExtractor
-)
+from ada_annotator.document_processors.base_assembler import DocumentAssembler
+from ada_annotator.document_processors.base_extractor import DocumentExtractor
+from ada_annotator.document_processors.docx_assembler import DOCXAssembler
+from ada_annotator.document_processors.docx_extractor import DOCXExtractor
+from ada_annotator.document_processors.pptx_assembler import PPTXAssembler
+from ada_annotator.document_processors.pptx_extractor import PPTXExtractor
 
 __all__ = [
     "DocumentAssembler",
@@ -33,4 +21,3 @@ __all__ = [
     "PPTXAssembler",
     "PPTXExtractor",
 ]
-

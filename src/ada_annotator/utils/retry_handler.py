@@ -5,9 +5,10 @@ Provides retry logic for handling transient API failures.
 """
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, TypeVar
 
 from ada_annotator.exceptions import APIError
 from ada_annotator.utils.logging import get_logger
@@ -50,7 +51,7 @@ class RetryConfig:
             >>> config.get_delay(1)  # 2.0
             >>> config.get_delay(2)  # 4.0
         """
-        delay = self.initial_delay * (self.exponential_base ** attempt)
+        delay = self.initial_delay * (self.exponential_base**attempt)
         return min(delay, self.max_delay)
 
 
@@ -87,7 +88,7 @@ def should_retry_error(error: Exception) -> bool:
 
 
 def retry_with_exponential_backoff(
-    config: Optional[RetryConfig] = None,
+    config: RetryConfig | None = None,
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """
     Decorator that adds retry logic with exponential backoff.
@@ -116,7 +117,7 @@ def retry_with_exponential_backoff(
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> T:
-            last_exception: Optional[Exception] = None
+            last_exception: Exception | None = None
 
             for attempt in range(config.max_retries + 1):
                 try:
