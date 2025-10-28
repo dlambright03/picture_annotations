@@ -43,6 +43,11 @@ class ImageMetadata(BaseModel):
     existing_alt_text: str | None = Field(
         None, description="Pre-existing alt-text if present"
     )
+    image_data: bytes | None = Field(
+        None,
+        description="Binary image data (optional, for in-memory processing)",
+        exclude=True,  # Don't include in JSON serialization
+    )
 
     class Config:
         """Pydantic model configuration."""

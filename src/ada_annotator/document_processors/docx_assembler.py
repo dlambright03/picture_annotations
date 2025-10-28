@@ -118,11 +118,12 @@ class DOCXAssembler(DocumentAssembler):
         Returns:
             str: Status message ('success', 'skipped', or error).
         """
-        # Extract paragraph index from image_id
+        # Extract paragraph index and image index from image_id
         # Format: "img-{paragraph_idx}-{image_idx}"
         try:
             parts = result.image_id.split("-")
             paragraph_idx = int(parts[1])
+            image_idx = int(parts[2])
         except (IndexError, ValueError):
             return "failed: invalid image_id format"
 
@@ -138,14 +139,13 @@ class DOCXAssembler(DocumentAssembler):
         if not images_found:
             return "failed: no images found in paragraph"
 
-        # Apply alt-text to all images in paragraph
-        # (In practice, we'd need better matching logic)
-        applied_count = 0
-        for img_element in images_found:
-            if self._set_alt_text_on_element(img_element, result.alt_text):
-                applied_count += 1
+        # Validate image index
+        if image_idx >= len(images_found):
+            return "failed: image index out of range"
 
-        if applied_count > 0:
+        # Apply alt-text to the specific image at the given index
+        img_element = images_found[image_idx]
+        if self._set_alt_text_on_element(img_element, result.alt_text):
             return "success"
         else:
             return "failed: could not set alt-text"
@@ -158,20 +158,31 @@ class DOCXAssembler(DocumentAssembler):
             paragraph: docx.text.paragraph.Paragraph object.
 
         Returns:
-            List: List of image XML elements.
+            List: List of image XML elements (deduplicated).
         """
         images = []
+        seen_elements = set()
 
         # Find inline images (in runs)
         for run in paragraph.runs:
             # Look for inline shapes (pictures)
             # Use qn() for qualified names
             inline_shapes = run._element.findall(f'.//{qn("pic:pic")}')
-            images.extend(inline_shapes)
+            for shape in inline_shapes:
+                # Use id() to deduplicate - same object won't be added twice
+                element_id = id(shape)
+                if element_id not in seen_elements:
+                    seen_elements.add(element_id)
+                    images.append(shape)
 
-        # Find floating images (in paragraph)
+        # Find floating images (anchored to paragraph)
+        # Note: This may find images not in runs, so we deduplicate
         floating_shapes = paragraph._element.findall(f'.//{qn("pic:pic")}')
-        images.extend(floating_shapes)
+        for shape in floating_shapes:
+            element_id = id(shape)
+            if element_id not in seen_elements:
+                seen_elements.add(element_id)
+                images.append(shape)
 
         return images
 

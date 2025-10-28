@@ -55,8 +55,8 @@ class Settings(BaseSettings):
     )
 
     # AI Generation Settings
-    ai_temperature: float = Field(default=0.3, ge=0.0, le=1.0)
-    ai_max_tokens: int = Field(default=500, ge=1, le=4000)
+    ai_temperature: float = Field(default=0.5, ge=0.0, le=1.0)
+    ai_max_tokens: int = Field(default=600, ge=1, le=4000)
     ai_timeout_seconds: int = Field(default=30, ge=1, le=300)
 
     # Alt-Text Settings

@@ -63,14 +63,11 @@ AZURE_OPENAI_API_VERSION=2024-02-15-preview
 
 4. **Process your first document:**
 ```bash
-# Using uv with the annotate command (simplest)
-uv run annotate --input tests/fixtures/documents/sample.docx --output output.docx --log-level INFO
+# Using uv with the annotate command (simplest - note: input is positional, not --input)
+uv run annotate tests/fixtures/documents/sample.docx --output output.docx --log-level INFO
 
 # Or using the full module path
-uv run python -m ada_annotator.cli \
-    --input tests/fixtures/documents/sample.docx \
-    --output output.docx \
-    --log-level INFO
+uv run python -m ada_annotator.cli tests/fixtures/documents/sample.docx --output output.docx --log-level INFO
 
 # Or activate virtual environment first, then use the command directly
 # Windows
@@ -78,7 +75,7 @@ uv run python -m ada_annotator.cli \
 # macOS/Linux
 source .venv/bin/activate
 
-annotate --input tests/fixtures/documents/sample.docx --output output.docx --log-level INFO
+annotate tests/fixtures/documents/sample.docx --output output.docx --log-level INFO
 ```
 
 See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed setup instructions and troubleshooting.
@@ -90,30 +87,27 @@ See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed setup instructions and trouble
 The primary interface for Phase 1 is the command-line tool:
 
 ```bash
-# Basic usage - process a DOCX file (using uv)
-uv run annotate --input document.docx --output annotated.docx
+# Basic usage - process a DOCX file (using uv) - INPUT IS POSITIONAL
+uv run annotate document.docx --output annotated.docx
 
 # Process a PowerPoint presentation
-uv run annotate --input presentation.pptx --output annotated.pptx
+uv run annotate presentation.pptx --output annotated.pptx
 
 # Use external context file for better descriptions
-uv run annotate \
-    --input document.docx \
+uv run annotate document.docx \
     --output annotated.docx \
     --context course_syllabus.txt
 
 # Dry-run mode (extract images and preview without generating alt-text)
-uv run annotate --input document.docx --dry-run
+uv run annotate document.docx --dry-run
 
 # Limit processing to first 5 images (for testing)
-uv run annotate \
-    --input document.docx \
+uv run annotate document.docx \
     --output annotated.docx \
     --max-images 5
 
 # Enable verbose logging
-uv run annotate \
-    --input document.docx \
+uv run annotate document.docx \
     --output annotated.docx \
     --log-level DEBUG
 ```
@@ -125,8 +119,7 @@ uv run annotate \
 **1. Quick Test with Sample Document:**
 ```bash
 # Process sample document with debug logging
-uv run annotate \
-    --input tests/fixtures/documents/sample.docx \
+uv run annotate tests/fixtures/documents/sample.docx \
     --output output/annotated.docx \
     --log-level DEBUG
 ```
@@ -135,15 +128,14 @@ uv run annotate \
 ```bash
 # Process all DOCX files in a directory (using PowerShell)
 Get-ChildItem *.docx | ForEach-Object {
-    uv run annotate --input $_.Name --output "output/$($_.Name)"
+    uv run annotate $_.Name --output "output/$($_.Name)"
 }
 ```
 
 **3. Educational Content with Context:**
 ```bash
 # Include course context for better descriptions
-uv run annotate \
-    --input lecture_notes.docx \
+uv run annotate lecture_notes.docx \
     --output annotated_lecture.docx \
     --context course_context.md \
     --log-level INFO

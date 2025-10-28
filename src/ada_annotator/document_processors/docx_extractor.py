@@ -86,19 +86,14 @@ class DOCXExtractor(DocumentExtractor):
         images = []
 
         try:
-            # Extract inline images from paragraphs
-            inline_images = self._extract_inline_images()
-            images.extend(inline_images)
-
-            # Extract floating/anchored images
-            floating_images = self._extract_floating_images()
-            images.extend(floating_images)
+            # Extract all images paragraph by paragraph to maintain consistent indexing
+            for para_idx, paragraph in enumerate(self.document.paragraphs):
+                para_images = self._extract_images_from_paragraph(paragraph, para_idx)
+                images.extend(para_images)
 
             self.logger.info(
                 "extraction_completed",
                 total_images=len(images),
-                inline_count=len(inline_images),
-                floating_count=len(floating_images),
             )
 
             return images
@@ -110,171 +105,97 @@ class DOCXExtractor(DocumentExtractor):
             )
             raise ProcessingError(f"Failed to extract images: {e}") from e
 
-    def _extract_inline_images(self) -> list[ImageMetadata]:
+    def _extract_images_from_paragraph(
+        self, paragraph, para_idx: int
+    ) -> list[ImageMetadata]:
         """
-        Extract inline images from paragraph runs.
+        Extract all images (inline and floating) from a single paragraph.
+
+        Args:
+            paragraph: The paragraph object.
+            para_idx: The paragraph index.
 
         Returns:
-            List[ImageMetadata]: List of inline images.
+            List[ImageMetadata]: Images found in this paragraph.
         """
         images = []
 
-        for para_idx, paragraph in enumerate(self.document.paragraphs):
-            for run in paragraph.runs:
-                # Find inline shapes (images) in run
-                inline_shapes = run._element.xpath(".//a:blip")
+        # Find all blips (images) in this paragraph (both inline and floating)
+        all_blips = paragraph._element.xpath(".//a:blip")
 
-                for blip in inline_shapes:
-                    try:
-                        # Extract image from relationship
-                        rId = blip.get(qn("r:embed"))
-                        if not rId:
-                            continue
-
-                        image_part = self.document.part.related_parts.get(rId)
-                        if not image_part:
-                            continue
-
-                        # Get image binary data
-                        image_bytes = image_part.blob
-
-                        # Get image format from content type
-                        content_type = image_part.content_type
-                        format_str = content_type.split("/")[-1].upper()
-
-                        # Normalize format names
-                        if format_str == "JPEG" or format_str == "JPG":
-                            format_str = "JPEG"
-
-                        # Load with PIL to get dimensions
-                        img = Image.open(BytesIO(image_bytes))
-
-                        # Extract existing alt-text
-                        alt_text = self._extract_alt_text_from_blip(blip)
-
-                        # Create position metadata
-                        position = {
-                            "paragraph_index": para_idx,
-                            "anchor_type": "inline",
-                        }
-
-                        # Create ImageMetadata
-                        image_id = f"para{para_idx}_img{len(images)}"
-                        metadata = ImageMetadata(
-                            image_id=image_id,
-                            filename=(f"{image_id}.{format_str.lower()}"),
-                            format=format_str,
-                            size_bytes=len(image_bytes),
-                            width_pixels=img.width,
-                            height_pixels=img.height,
-                            page_number=None,  # DOCX has no pages
-                            position=position,
-                            existing_alt_text=alt_text,
-                        )
-
-                        images.append(metadata)
-
-                        self.logger.debug(
-                            "inline_image_extracted",
-                            image_id=image_id,
-                            paragraph_index=para_idx,
-                            format=format_str,
-                            has_alt_text=bool(alt_text),
-                        )
-
-                    except Exception as e:
-                        self.logger.warning(
-                            "inline_image_extraction_failed",
-                            paragraph_index=para_idx,
-                            error=str(e),
-                        )
-                        continue
-
-        return images
-
-    def _extract_floating_images(self) -> list[ImageMetadata]:
-        """
-        Extract floating/anchored images.
-
-        Returns:
-            List[ImageMetadata]: List of floating images.
-        """
-        images = []
-
-        # Iterate through all drawing elements in document
-        for para_idx, paragraph in enumerate(self.document.paragraphs):
-            # Find drawing (floating) elements
-            drawings = paragraph._element.xpath(".//w:drawing")
-
-            for drawing in drawings:
-                try:
-                    # Find blip (image reference) in drawing
-                    blips = drawing.xpath(".//a:blip")
-
-                    for blip in blips:
-                        # Extract image from relationship
-                        rId = blip.get(qn("r:embed"))
-                        if not rId:
-                            continue
-
-                        image_part = self.document.part.related_parts.get(rId)
-                        if not image_part:
-                            continue
-
-                        # Get image binary data
-                        image_bytes = image_part.blob
-
-                        # Get image format
-                        content_type = image_part.content_type
-                        format_str = content_type.split("/")[-1].upper()
-
-                        # Normalize format
-                        if format_str in ["JPG", "JPEG"]:
-                            format_str = "JPEG"
-
-                        # Load with PIL
-                        img = Image.open(BytesIO(image_bytes))
-
-                        # Extract alt-text
-                        alt_text = self._extract_alt_text_from_blip(blip)
-
-                        # Create position metadata
-                        position = {
-                            "paragraph_index": para_idx,
-                            "anchor_type": "floating",
-                        }
-
-                        # Create ImageMetadata
-                        image_id = f"para{para_idx}_float{len(images)}"
-                        metadata = ImageMetadata(
-                            image_id=image_id,
-                            filename=(f"{image_id}.{format_str.lower()}"),
-                            format=format_str,
-                            size_bytes=len(image_bytes),
-                            width_pixels=img.width,
-                            height_pixels=img.height,
-                            page_number=None,
-                            position=position,
-                            existing_alt_text=alt_text,
-                        )
-
-                        images.append(metadata)
-
-                        self.logger.debug(
-                            "floating_image_extracted",
-                            image_id=image_id,
-                            paragraph_index=para_idx,
-                            format=format_str,
-                            has_alt_text=bool(alt_text),
-                        )
-
-                except Exception as e:
-                    self.logger.warning(
-                        "floating_image_extraction_failed",
-                        paragraph_index=para_idx,
-                        error=str(e),
-                    )
+        for blip in all_blips:
+            try:
+                # Extract image from relationship
+                rId = blip.get(qn("r:embed"))
+                if not rId:
                     continue
+
+                image_part = self.document.part.related_parts.get(rId)
+                if not image_part:
+                    continue
+
+                # Get image binary data
+                image_bytes = image_part.blob
+
+                # Get image format from content type
+                content_type = image_part.content_type
+                format_str = content_type.split("/")[-1].upper()
+
+                # Normalize format names
+                if format_str in ["JPG", "JPEG"]:
+                    format_str = "JPEG"
+
+                # Load with PIL to get dimensions
+                img = Image.open(BytesIO(image_bytes))
+
+                # Extract existing alt-text
+                alt_text = self._extract_alt_text_from_blip(blip)
+
+                # Determine anchor type (inline vs floating)
+                anchor_type = "inline"
+                if blip.xpath("ancestor::w:drawing/wp:anchor"):
+                    anchor_type = "floating"
+
+                # Create position metadata
+                position = {
+                    "paragraph_index": para_idx,
+                    "anchor_type": anchor_type,
+                }
+
+                # Create ImageMetadata with per-paragraph image index
+                image_idx = len(images)  # Index within this paragraph
+                image_id = f"img-{para_idx}-{image_idx}"
+                metadata = ImageMetadata(
+                    image_id=image_id,
+                    filename=(f"{image_id}.{format_str.lower()}"),
+                    format=format_str,
+                    size_bytes=len(image_bytes),
+                    width_pixels=img.width,
+                    height_pixels=img.height,
+                    page_number=None,  # DOCX has no pages
+                    position=position,
+                    existing_alt_text=alt_text,
+                    image_data=image_bytes,  # Include binary data
+                )
+
+                images.append(metadata)
+
+                self.logger.debug(
+                    "image_extracted",
+                    image_id=image_id,
+                    paragraph_index=para_idx,
+                    format=format_str,
+                    anchor_type=anchor_type,
+                    has_alt_text=bool(alt_text),
+                )
+
+            except Exception as e:
+                self.logger.warning(
+                    "image_extraction_failed",
+                    paragraph_index=para_idx,
+                    error=str(e),
+                )
+                continue
 
         return images
 

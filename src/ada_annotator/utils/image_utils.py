@@ -14,6 +14,115 @@ from ada_annotator.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+def analyze_image_content(image_data: bytes) -> dict:
+    """
+    Analyze image to detect potential issues like transparency or low content.
+
+    Args:
+        image_data: Raw image binary data
+
+    Returns:
+        Dict with analysis results including:
+        - is_mostly_transparent: bool
+        - is_very_small: bool
+        - has_alpha: bool
+        - unique_colors: int
+
+    Example:
+        >>> with open("image.png", "rb") as f:
+        ...     data = f.read()
+        >>> analysis = analyze_image_content(data)
+        >>> if analysis['is_mostly_transparent']:
+        ...     print("Image is mostly transparent")
+    """
+    from io import BytesIO
+
+    try:
+        img = Image.open(BytesIO(image_data))
+
+        analysis = {
+            "is_mostly_transparent": False,
+            "is_very_small": False,
+            "has_alpha": False,
+            "unique_colors": 0,
+            "width": img.width,
+            "height": img.height,
+        }
+
+        # Check if very small
+        if img.width * img.height < 100:  # Less than 100 pixels total
+            analysis["is_very_small"] = True
+
+        # Check for alpha channel
+        if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+            analysis["has_alpha"] = True
+
+            # Convert to RGBA to analyze transparency
+            if img.mode != "RGBA":
+                img = img.convert("RGBA")
+
+            # Count transparent pixels
+            pixels = list(img.getdata())
+            transparent_count = sum(1 for p in pixels if len(p) == 4 and p[3] < 10)
+            transparency_ratio = transparent_count / len(pixels)
+
+            if transparency_ratio > 0.9:  # More than 90% transparent
+                analysis["is_mostly_transparent"] = True
+
+        # Estimate unique colors (sample for performance)
+        if img.mode in ("RGB", "RGBA"):
+            # Sample up to 1000 pixels
+            sample_size = min(1000, img.width * img.height)
+            step = max(1, (img.width * img.height) // sample_size)
+            pixels = list(img.getdata())[::step]
+            unique = len(set(pixels))
+            analysis["unique_colors"] = unique
+
+        return analysis
+
+    except Exception as e:
+        logger.warning(f"Failed to analyze image content: {e}")
+        return {
+            "is_mostly_transparent": False,
+            "is_very_small": False,
+            "has_alpha": False,
+            "unique_colors": 0,
+        }
+
+
+def convert_image_bytes_to_base64(
+    image_data: bytes, include_prefix: bool = False, image_format: str = "jpeg"
+) -> str:
+    """
+    Convert image binary data to base64 encoded string.
+
+    Args:
+        image_data: Raw image binary data
+        include_prefix: If True, includes data URI prefix
+                       (e.g., "data:image/jpeg;base64,")
+        image_format: Image format for prefix (e.g., "jpeg", "png")
+
+    Returns:
+        Base64 encoded string representation of the image
+
+    Example:
+        >>> with open("image.jpg", "rb") as f:
+        ...     data = f.read()
+        >>> base64_str = convert_image_bytes_to_base64(data)
+    """
+    # Encode to base64
+    base64_encoded = base64.b64encode(image_data).decode("utf-8")
+
+    if include_prefix:
+        # Normalize format name
+        fmt = image_format.lower()
+        if fmt in ["jpg", "jpeg"]:
+            fmt = "jpeg"
+        return f"data:image/{fmt};base64,{base64_encoded}"
+
+    return base64_encoded
+
+
 def convert_image_to_base64(
     image_path: str | Path, include_prefix: bool = False
 ) -> str:

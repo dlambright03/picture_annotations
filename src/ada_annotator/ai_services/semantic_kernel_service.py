@@ -20,29 +20,45 @@ from semantic_kernel.contents.image_content import ImageContent
 from ada_annotator.config import Settings
 from ada_annotator.exceptions import APIError
 from ada_annotator.models import ImageMetadata
-from ada_annotator.utils.image_utils import convert_image_to_base64
+from ada_annotator.utils.image_utils import (
+    analyze_image_content,
+    convert_image_bytes_to_base64,
+    convert_image_to_base64,
+)
 from ada_annotator.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
 # System prompt for alt-text generation
-ALT_TEXT_SYSTEM_PROMPT = """You are an accessibility expert creating alt-text for educational documents.
+ALT_TEXT_SYSTEM_PROMPT = """You are an accessibility expert creating alt-text for educational documents to help blind and visually impaired users.
 
-Your task is to analyze images and generate concise, descriptive alternative text that meets ADA compliance standards.
+Your task is to analyze images and generate detailed, descriptive alternative text that meets ADA compliance standards.
 
-Guidelines:
-- Be concise but descriptive (100-150 characters preferred, max 250)
-- Describe the essential content and purpose of the image
-- Avoid phrases like "image of", "picture of", or "graphic showing"
-- For charts/graphs: Include key data points and trends
-- For diagrams: Describe structure and relationships
-- For screenshots: Describe UI elements and their purpose
-- Use objective, factual language
-- Match the technical level of the surrounding content
-- Start with a capital letter and end with a period
+CRITICAL RULES:
+- Provide 1-2 detailed sentences that fully describe the image
+- MAXIMUM 280 characters - be concise but informative
+- Describe the subject(s) in detail - what objects, people, or concepts are shown
+- Describe the setting or context - where is this taking place, what's the environment
+- Describe the actions or relationships - what's happening, how elements relate
+- Include relevant details that give meaning: colors, sizes, positions, expressions, symbols
+- For charts/graphs: Describe what is being measured, key data points, trends, and relationships
+- For diagrams: Explain the structure, components, connections, and what they represent
+- For equations/formulas: Describe what the equation shows and its components
+- For screenshots: Describe visible UI elements, text, buttons, and their purpose
 
-Remember: Your description helps visually impaired users understand the image's content and purpose."""
+WHAT TO AVOID:
+- Never use phrases like "image of", "picture of", "graphic showing", "photo of", "screenshot of"
+- Never just repeat image filenames or figure numbers
+- Never provide vague descriptions like "a diagram" or "a chart"
+- If the image is mostly blank, transparent, or contains only decorative elements, say: "Decorative element."
+
+HANDLING DIFFICULT IMAGES:
+- For mostly transparent/blank images: "Decorative spacing element."
+- For images that are too small/unclear to analyze: Describe what you can see
+- For images with primarily text: Quote the key text and describe any visual elements
+
+Remember: A blind person should understand the image's meaning and context from your description alone. Be specific and stay under 280 characters."""
 
 
 class SemanticKernelService:
@@ -108,7 +124,7 @@ class SemanticKernelService:
         )
 
     def _build_chat_history(
-        self, context: str, image_base64: str
+        self, context: str, image_base64: str, image_metadata: ImageMetadata
     ) -> ChatHistory:
         """
         Build multi-modal chat history with system prompt, context, and image.
@@ -116,6 +132,7 @@ class SemanticKernelService:
         Args:
             context: Textual context about the image
             image_base64: Base64 encoded image data
+            image_metadata: Metadata about the image
 
         Returns:
             ChatHistory with system message and user message containing
@@ -126,11 +143,33 @@ class SemanticKernelService:
         # Add system message with alt-text guidelines
         history.add_system_message(ALT_TEXT_SYSTEM_PROMPT)
 
+        # Analyze image content for potential issues
+        if image_metadata.image_data:
+            analysis = analyze_image_content(image_metadata.image_data)
+
+            # Build enhanced context with image analysis
+            analysis_notes = []
+            if analysis.get("is_mostly_transparent"):
+                analysis_notes.append("Note: This image appears to be mostly transparent or blank.")
+            if analysis.get("is_very_small"):
+                analysis_notes.append("Note: This image is very small and may be decorative.")
+            if analysis.get("unique_colors", 0) < 10:
+                analysis_notes.append("Note: This image has very few colors.")
+
+            if analysis_notes:
+                context_with_analysis = f"{context}\n\nImage Analysis:\n" + "\n".join(analysis_notes)
+            else:
+                context_with_analysis = context
+        else:
+            context_with_analysis = context
+
         # Add user message with context text
         context_message = (
-            f"Context from document:\n{context}\n\n"
-            f"Please analyze the provided image and generate appropriate "
-            f"alt-text based on this context."
+            f"Context from document:\n{context_with_analysis}\n\n"
+            f"Please analyze the provided image and generate detailed, descriptive "
+            f"alt-text (1-2 sentences) that describes what's in the image, the setting, "
+            f"and any actions or relationships shown. Focus on giving a blind person "
+            f"enough detail to understand the image's content and meaning."
         )
         history.add_user_message(context_message)
 
@@ -146,12 +185,15 @@ class SemanticKernelService:
 
         return history
 
-    def _prepare_image(self, image_path: str) -> str:
+    def _prepare_image(self, image_metadata: ImageMetadata) -> str:
         """
-        Convert image file to base64 for API transmission.
+        Convert image to base64 for API transmission.
+
+        Uses in-memory binary data if available, otherwise reads from file.
 
         Args:
-            image_path: Path to image file
+            image_metadata: Image metadata containing either binary data
+                           or file path
 
         Returns:
             Base64 encoded image string
@@ -160,9 +202,22 @@ class SemanticKernelService:
             APIError: If image cannot be read or converted
         """
         try:
-            return convert_image_to_base64(image_path, include_prefix=False)
+            # Prefer in-memory binary data
+            if image_metadata.image_data:
+                return convert_image_bytes_to_base64(
+                    image_metadata.image_data,
+                    include_prefix=False,
+                    image_format=image_metadata.format,
+                )
+            # Fall back to file path
+            else:
+                return convert_image_to_base64(
+                    image_metadata.filename, include_prefix=False
+                )
         except Exception as e:
-            logger.error(f"Failed to prepare image {image_path}: {e}")
+            logger.error(
+                f"Failed to prepare image {image_metadata.image_id}: {e}"
+            )
             raise APIError(f"Image preparation failed: {e}") from e
 
     async def generate_alt_text(
@@ -193,10 +248,10 @@ class SemanticKernelService:
         """
         try:
             # Convert image to base64
-            image_base64 = self._prepare_image(image_metadata.filename)
+            image_base64 = self._prepare_image(image_metadata)
 
             # Build chat history with context and image
-            chat_history = self._build_chat_history(context, image_base64)
+            chat_history = self._build_chat_history(context, image_base64, image_metadata)
 
             # Get execution settings
             execution_settings = self._get_execution_settings()
@@ -205,10 +260,14 @@ class SemanticKernelService:
                 f"Generating alt-text for image {image_metadata.image_id}"
             )
 
+            # Get the chat completion service
+            chat_service = self.kernel.get_service(self.service_id)
+
             # Call Azure OpenAI
-            response = await self.kernel.get_chat_message_content_async(
+            response = await chat_service.get_chat_message_content(
                 chat_history=chat_history,
                 settings=execution_settings,
+                kernel=self.kernel,
             )
 
             # Extract text from response
@@ -258,9 +317,13 @@ class SemanticKernelService:
 
             settings = self._get_execution_settings()
 
-            await self.kernel.get_chat_message_content_async(
+            # Get the chat completion service
+            chat_service = self.kernel.get_service(self.service_id)
+
+            await chat_service.get_chat_message_content(
                 chat_history=test_history,
                 settings=settings,
+                kernel=self.kernel,
             )
 
             logger.info("AI service availability check: SUCCESS")

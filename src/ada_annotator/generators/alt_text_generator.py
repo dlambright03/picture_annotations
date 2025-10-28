@@ -32,9 +32,9 @@ class AltTextGenerator:
 
     # Validation constants
     MIN_LENGTH = 10
-    MAX_LENGTH = 250
-    PREFERRED_MIN = 50
-    PREFERRED_MAX = 200
+    MAX_LENGTH = 350
+    PREFERRED_MIN = 80
+    PREFERRED_MAX = 280
 
     # Forbidden phrases in alt-text
     FORBIDDEN_PHRASES = [
@@ -43,6 +43,28 @@ class AltTextGenerator:
         "graphic showing",
         "photo of",
         "screenshot of",
+        "diagram showing",
+        "illustration of",
+    ]
+
+    # Patterns that indicate poor quality alt-text
+    POOR_QUALITY_PATTERNS = [
+        r"^[a-z0-9_\-\.]+$",  # Looks like a filename
+        r"^(fig|figure|img|image)[_\s]?\d+",  # Figure numbers
+        r"^\d+[a-z]?_[a-z]+_\d+",  # Pattern like "18_p_844"
+    ]
+
+    # Vague descriptions to avoid
+    VAGUE_DESCRIPTIONS = [
+        "a diagram",
+        "a chart",
+        "a graph",
+        "a table",
+        "an image",
+        "a picture",
+        "a figure",
+        "content",
+        "decorative",
     ]
 
     # Cost estimates (Azure OpenAI GPT-4o pricing per 1M tokens)
@@ -102,7 +124,7 @@ class AltTextGenerator:
             # Fallback to minimal context
             context_data = ContextData(
                 document_context=f"Document containing {image_metadata.format} image",
-                local_context="",
+                local_context="No surrounding text available.",
             )
             merged_context = context_data.get_merged_context()
 
@@ -241,6 +263,23 @@ class AltTextGenerator:
                     f"Alt-text contains forbidden phrase: '{phrase}'"
                 )
                 passed = False
+
+        # Check for poor quality patterns (looks like filename)
+        for pattern in self.POOR_QUALITY_PATTERNS:
+            if re.search(pattern, alt_text, re.IGNORECASE):
+                warnings.append(
+                    "Alt-text looks like a filename or code - needs descriptive text"
+                )
+                passed = False
+                break
+
+        # Check for vague descriptions (if the entire text is just a vague term)
+        alt_text_stripped = alt_text.strip().rstrip(".")
+        if alt_text_stripped.lower() in self.VAGUE_DESCRIPTIONS:
+            warnings.append(
+                f"Alt-text is too vague: '{alt_text_stripped}'"
+            )
+            passed = False
 
         # Check capitalization
         if alt_text and not alt_text[0].isupper():

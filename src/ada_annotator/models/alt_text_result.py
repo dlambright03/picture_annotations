@@ -31,8 +31,8 @@ class AltTextResult(BaseModel):
     alt_text: str = Field(
         ...,
         min_length=1,
-        max_length=250,
-        description="Generated alternative text (1-250 chars)",
+        max_length=350,
+        description="Generated alternative text (1-350 chars)",
     )
     confidence_score: float = Field(
         ..., ge=0.0, le=1.0, description="AI confidence score (0.0-1.0)"
