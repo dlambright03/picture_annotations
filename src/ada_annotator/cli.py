@@ -92,6 +92,12 @@ def create_argument_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Generate debug document with images and annotations instead of applying alt-text",
+    )
+
+    parser.add_argument(
         "-b",
         "--backup",
         action="store_true",
@@ -271,6 +277,25 @@ def generate_output_path(input_path: Path) -> Path:
     return input_path.with_stem(f"{input_path.stem}_annotated")
 
 
+def generate_debug_output_path(input_path: Path) -> Path:
+    """
+    Generate default debug output path from input path.
+
+    Adds '_debug' suffix before file extension.
+
+    Args:
+        input_path: Path to input file.
+
+    Returns:
+        Path: Generated debug output file path.
+
+    Example:
+        >>> generate_debug_output_path(Path("document.docx"))
+        Path("document_debug.docx")
+    """
+    return input_path.with_stem(f"{input_path.stem}_debug")
+
+
 def process_document_dry_run(
     input_path: Path,
     context_path: str | None,
@@ -339,6 +364,7 @@ async def process_document(
     context_path: Path | None,
     max_images: int | None,
     backup: bool,
+    debug_mode: bool,
     logger: structlog.BoundLogger,
 ) -> DocumentProcessingResult:
     """
@@ -350,6 +376,7 @@ async def process_document(
         context_path: Path to external context file (optional).
         max_images: Maximum number of images to process.
         backup: Whether to create backup of original file.
+        debug_mode: Whether to generate debug document instead of applying alt-text.
         logger: Structured logger instance.
 
     Returns:
@@ -433,36 +460,46 @@ async def process_document(
 
     print(f"    Generated {succeeded}/{len(images)} alt-texts")
 
-    # Step 4: Apply alt-text to document
-    print("[4/4] Applying alt-text to document...")
+    # Step 4: Apply alt-text to document OR create debug document
+    if debug_mode:
+        print("[4/4] Creating debug document...")
+        from ada_annotator.utils.debug_document import create_debug_document
 
-    # Create backup if requested
-    if backup:
-        backup_path = input_path.with_stem(f"{input_path.stem}_backup")
-        import shutil
+        create_debug_document(images, alt_text_results, output_path)
+        print(f"    Debug document created: {output_path}")
+    else:
+        print("[4/4] Applying alt-text to document...")
 
-        shutil.copy2(input_path, backup_path)
-        logger.info("backup_created", backup_path=str(backup_path))
-        print(f"    Backup created: {backup_path}")
+        # Create backup if requested
+        if backup:
+            backup_path = input_path.with_stem(f"{input_path.stem}_backup")
+            import shutil
 
-    # Apply alt-text
-    if doc_format == "DOCX":
-        assembler = DOCXAssembler(input_path, output_path)
-    else:  # PPTX
-        assembler = PPTXAssembler(input_path, output_path)
+            shutil.copy2(input_path, backup_path)
+            logger.info("backup_created", backup_path=str(backup_path))
+            print(f"    Backup created: {backup_path}")
 
-    status_map = assembler.apply_alt_text(alt_text_results)
-    assembler.save_document()
+        # Apply alt-text
+        if doc_format == "DOCX":
+            assembler = DOCXAssembler(input_path, output_path)
+        else:  # PPTX
+            assembler = PPTXAssembler(input_path, output_path)
 
-    # Track assembly errors
-    for image_id, status in status_map.items():
-        if status != "success":
-            error_tracker.track_error(
-                image_id=image_id,
-                error_message=f"Assembly failed: {status}",
-                category=ErrorCategory.PROCESSING,
-            )
+        status_map = assembler.apply_alt_text(alt_text_results)
+        assembler.save_document()
 
+        # Track assembly errors
+        for image_id, status in status_map.items():
+            if status != "success":
+                error_tracker.track_error(
+                    image_id=image_id,
+                    error_message=f"Assembly failed: {status}",
+                    category=ErrorCategory.PROCESSING,
+                )
+
+        print(f"    Document saved: {output_path}")
+
+    # Calculate processing metrics
     duration = time.time() - start_time
     total_tokens = sum(r.tokens_used for r in alt_text_results)
 
@@ -477,8 +514,6 @@ async def process_document(
             input_tokens * AltTextGenerator.INPUT_COST_PER_TOKEN
             + output_tokens * AltTextGenerator.OUTPUT_COST_PER_TOKEN
         )
-
-    print(f"    Document saved: {output_path}")
 
     # Build error list from error tracker
     errors_list = error_tracker.get_errors()
@@ -547,7 +582,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.output:
             output_path = Path(args.output)
         else:
-            output_path = generate_output_path(input_path)
+            if args.debug:
+                output_path = generate_debug_output_path(input_path)
+            else:
+                output_path = generate_output_path(input_path)
             logger.info("output_path_generated", path=str(output_path))
 
         # Validate output directory
@@ -565,6 +603,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Output File:   {output_path}")
         if args.context:
             print(f"Context File:  {args.context}")
+        if args.debug:
+            print(
+                "\n[DEBUG MODE] Will generate debug document with images "
+                "and annotations"
+            )
         if args.dry_run:
             print("\n[!] DRY RUN MODE - No files will be modified")
         if args.backup:
@@ -595,6 +638,7 @@ def main(argv: list[str] | None = None) -> int:
                     context_path=Path(args.context) if args.context else None,
                     max_images=args.max_images,
                     backup=args.backup,
+                    debug_mode=args.debug,
                     logger=logger,
                 )
             )

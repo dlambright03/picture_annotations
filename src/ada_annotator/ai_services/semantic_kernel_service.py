@@ -21,7 +21,6 @@ from ada_annotator.config import Settings
 from ada_annotator.exceptions import APIError
 from ada_annotator.models import ImageMetadata
 from ada_annotator.utils.image_utils import (
-    analyze_image_content,
     convert_image_bytes_to_base64,
     convert_image_to_base64,
 )
@@ -143,29 +142,9 @@ class SemanticKernelService:
         # Add system message with alt-text guidelines
         history.add_system_message(ALT_TEXT_SYSTEM_PROMPT)
 
-        # Analyze image content for potential issues
-        if image_metadata.image_data:
-            analysis = analyze_image_content(image_metadata.image_data)
-
-            # Build enhanced context with image analysis
-            analysis_notes = []
-            if analysis.get("is_mostly_transparent"):
-                analysis_notes.append("Note: This image appears to be mostly transparent or blank.")
-            if analysis.get("is_very_small"):
-                analysis_notes.append("Note: This image is very small and may be decorative.")
-            if analysis.get("unique_colors", 0) < 10:
-                analysis_notes.append("Note: This image has very few colors.")
-
-            if analysis_notes:
-                context_with_analysis = f"{context}\n\nImage Analysis:\n" + "\n".join(analysis_notes)
-            else:
-                context_with_analysis = context
-        else:
-            context_with_analysis = context
-
         # Add user message with context text
         context_message = (
-            f"Context from document:\n{context_with_analysis}\n\n"
+            f"Context from document:\n{context}\n\n"
             f"Please analyze the provided image and generate detailed, descriptive "
             f"alt-text (1-2 sentences) that describes what's in the image, the setting, "
             f"and any actions or relationships shown. Focus on giving a blind person "
