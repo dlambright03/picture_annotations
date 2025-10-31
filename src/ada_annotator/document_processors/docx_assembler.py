@@ -145,10 +145,10 @@ class DOCXAssembler(DocumentAssembler):
 
         # Apply alt-text to the specific image at the given index
         img_element = images_found[image_idx]
-        
+
         # For decorative images, set empty alt-text
         alt_text_to_apply = "" if result.is_decorative else result.alt_text
-        
+
         if self._set_alt_text_on_element(img_element, alt_text_to_apply):
             if result.is_decorative:
                 return "success (decorative)"
