@@ -19,6 +19,7 @@ class AltTextResult(BaseModel):
     Attributes:
         image_id: Unique identifier for the image.
         alt_text: Generated alternative text description.
+        is_decorative: Whether the image is purely decorative (no alt-text needed).
         confidence_score: AI confidence (0.0-1.0).
         validation_passed: Whether validation checks passed.
         validation_warnings: List of validation warnings.
@@ -30,9 +31,13 @@ class AltTextResult(BaseModel):
     image_id: str = Field(..., description="Unique identifier for the image")
     alt_text: str = Field(
         ...,
-        min_length=1,
+        min_length=0,
         max_length=350,
-        description="Generated alternative text (1-350 chars)",
+        description="Generated alternative text (0-350 chars, empty if decorative)",
+    )
+    is_decorative: bool = Field(
+        default=False,
+        description="True if image is purely decorative and needs no alt-text",
     )
     confidence_score: float = Field(
         ..., ge=0.0, le=1.0, description="AI confidence score (0.0-1.0)"
@@ -64,6 +69,7 @@ class AltTextResult(BaseModel):
                     "Diagram of a mitochondrion showing inner and "
                     "outer membranes with cristae folds"
                 ),
+                "is_decorative": False,
                 "confidence_score": 0.92,
                 "validation_passed": True,
                 "validation_warnings": [],

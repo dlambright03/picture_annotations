@@ -137,11 +137,15 @@ class AltTextGenerator:
             # Re-raise API errors (let caller handle)
             raise
 
-        # Auto-correct alt-text
-        alt_text = self._auto_correct_alt_text(raw_alt_text)
+        # Auto-correct alt-text and check if decorative
+        alt_text, is_decorative = self._auto_correct_alt_text(raw_alt_text)
 
-        # Validate alt-text
-        validation_passed, warnings = self._validate_alt_text(alt_text)
+        # Validate alt-text (skip validation if decorative)
+        if is_decorative:
+            validation_passed = True
+            warnings = []
+        else:
+            validation_passed, warnings = self._validate_alt_text(alt_text)
 
         # Track processing time
         processing_time = time.time() - start_time
@@ -156,6 +160,7 @@ class AltTextGenerator:
         result = AltTextResult(
             image_id=image_metadata.image_id,
             alt_text=alt_text,
+            is_decorative=is_decorative,
             confidence_score=0.85,  # Default confidence
             validation_passed=validation_passed,
             validation_warnings=warnings,
@@ -163,11 +168,16 @@ class AltTextGenerator:
             processing_time_seconds=round(processing_time, 3),
         )
 
-        logger.info(
-            f"Generated alt-text for {image_metadata.image_id}: "
-            f"{len(alt_text)} chars, {total_tokens} tokens, "
-            f"{processing_time:.2f}s"
-        )
+        if is_decorative:
+            logger.info(
+                f"Image {image_metadata.image_id} marked as DECORATIVE"
+            )
+        else:
+            logger.info(
+                f"Generated alt-text for {image_metadata.image_id}: "
+                f"{len(alt_text)} chars, {total_tokens} tokens, "
+                f"{processing_time:.2f}s"
+            )
 
         return result
 
@@ -291,27 +301,48 @@ class AltTextGenerator:
 
         return passed, warnings
 
-    def _auto_correct_alt_text(self, alt_text: str) -> str:
+    def _auto_correct_alt_text(self, alt_text: str) -> tuple[str, bool]:
         """
-        Apply automatic corrections to alt-text.
+        Apply automatic corrections to alt-text and detect decorative images.
 
         Args:
             alt_text: Raw alt-text from AI.
 
         Returns:
-            Corrected alt-text.
+            tuple: (corrected alt-text, is_decorative flag)
         """
         # Trim whitespace
         corrected = alt_text.strip()
 
+        # Check if image is marked as decorative
+        is_decorative = False
+        if corrected.upper() == "DECORATIVE":
+            is_decorative = True
+            corrected = ""  # Decorative images get empty alt-text
+            return corrected, is_decorative
+
         # Remove excessive whitespace
         corrected = re.sub(r"\s+", " ", corrected)
 
-        # Add period if missing
-        if corrected and not corrected.endswith("."):
+        # Truncate if too long (max 350 chars for validation)
+        if len(corrected) > self.MAX_LENGTH:
+            logger.warning(
+                f"Alt-text too long ({len(corrected)} chars), truncating to {self.MAX_LENGTH}"
+            )
+            # Truncate at word boundary near the limit
+            truncate_point = self.MAX_LENGTH - 3  # Leave room for "..."
+            # Find last space before truncate point
+            last_space = corrected[:truncate_point].rfind(" ")
+            if last_space > self.MAX_LENGTH * 0.8:  # Use word boundary if reasonable
+                corrected = corrected[:last_space] + "..."
+            else:
+                corrected = corrected[:truncate_point] + "..."
+
+        # Add period if missing (only if it doesn't end with punctuation)
+        if corrected and not corrected[-1] in ".!?…":
             corrected += "."
 
-        return corrected
+        return corrected, is_decorative
 
     def _calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
         """

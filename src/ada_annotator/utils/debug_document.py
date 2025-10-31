@@ -76,8 +76,14 @@ def create_debug_document(
         # Add generated alt-text
         if img.image_id in alt_text_map:
             result = alt_text_map[img.image_id]
-            doc.add_paragraph(f"Alt-Text: {result.alt_text}")
-            doc.add_paragraph(f"Confidence: {result.confidence_score:.2%}")
+            if result.is_decorative:
+                doc.add_paragraph("Alt-Text: [DECORATIVE - No alt-text needed]")
+                para = doc.add_paragraph()
+                para.add_run("Status: ").bold = True
+                para.add_run("Marked as decorative element")
+            else:
+                doc.add_paragraph(f"Alt-Text: {result.alt_text}")
+                doc.add_paragraph(f"Confidence: {result.confidence_score:.2%}")
             doc.add_paragraph(f"Tokens Used: {result.tokens_used}")
             doc.add_paragraph(
                 f"Processing Time: {result.processing_time_seconds:.2f}s"

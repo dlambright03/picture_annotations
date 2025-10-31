@@ -36,7 +36,8 @@ Your task is to analyze images and generate detailed, descriptive alternative te
 
 CRITICAL RULES:
 - Provide 1-2 detailed sentences that fully describe the image
-- MAXIMUM 280 characters - be concise but informative
+- MAXIMUM 250 characters - be concise but informative
+- NEVER exceed 250 characters - this is a hard limit
 - Describe the subject(s) in detail - what objects, people, or concepts are shown
 - Describe the setting or context - where is this taking place, what's the environment
 - Describe the actions or relationships - what's happening, how elements relate
@@ -50,14 +51,18 @@ WHAT TO AVOID:
 - Never use phrases like "image of", "picture of", "graphic showing", "photo of", "screenshot of"
 - Never just repeat image filenames or figure numbers
 - Never provide vague descriptions like "a diagram" or "a chart"
-- If the image is mostly blank, transparent, or contains only decorative elements, say: "Decorative element."
+
+DECORATIVE IMAGES:
+- If the image is ONLY decorative (spacing, border, purely aesthetic with no meaning), respond with EXACTLY: "DECORATIVE"
+- Be conservative - only mark as DECORATIVE if you're very confident it adds no informational value
+- Examples of decorative: blank spacing elements, simple colored bars, purely decorative borders
+- DO NOT mark as decorative: charts, diagrams, photos, screenshots, equations, or anything with informational content
 
 HANDLING DIFFICULT IMAGES:
-- For mostly transparent/blank images: "Decorative spacing element."
 - For images that are too small/unclear to analyze: Describe what you can see
 - For images with primarily text: Quote the key text and describe any visual elements
 
-Remember: A blind person should understand the image's meaning and context from your description alone. Be specific and stay under 280 characters."""
+Remember: A blind person should understand the image's meaning and context from your description alone. Be specific and stay under 250 characters."""
 
 
 class SemanticKernelService:

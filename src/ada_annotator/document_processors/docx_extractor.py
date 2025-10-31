@@ -148,6 +148,29 @@ class DOCXExtractor(DocumentExtractor):
                 # Load with PIL to get dimensions
                 img = Image.open(BytesIO(image_bytes))
 
+                # Convert unsupported formats (EMF, WMF, etc.) to PNG
+                # Also add white background to transparent images
+                if format_str not in ["JPEG", "PNG", "GIF", "BMP"]:
+                    self.logger.debug(
+                        "converting_unsupported_format",
+                        paragraph_index=para_idx,
+                        original_format=format_str,
+                        target_format="PNG",
+                    )
+                    img, image_bytes = self._convert_to_png_with_background(img)
+                    format_str = "PNG"
+                elif img.mode in ("RGBA", "LA", "PA") or (
+                    img.mode == "P" and "transparency" in img.info
+                ):
+                    # Image has transparency - add white background
+                    self.logger.debug(
+                        "adding_white_background",
+                        paragraph_index=para_idx,
+                        image_mode=img.mode,
+                    )
+                    img, image_bytes = self._convert_to_png_with_background(img)
+                    format_str = "PNG"
+
                 # Extract existing alt-text
                 alt_text = self._extract_alt_text_from_blip(blip)
 
@@ -238,3 +261,48 @@ class DOCXExtractor(DocumentExtractor):
 
         except Exception:
             return None
+
+    def _convert_to_png_with_background(self, img: Image.Image) -> tuple[Image.Image, bytes]:
+        """
+        Convert image to PNG format with white background.
+
+        Handles transparent images by compositing them onto a white background.
+        Also converts unsupported formats (EMF, WMF, etc.) to PNG.
+
+        Args:
+            img: PIL Image object.
+
+        Returns:
+            tuple: (converted Image object, PNG bytes)
+        """
+        # Create a white background image
+        if img.mode in ("RGBA", "LA"):
+            # Has alpha channel
+            background = Image.new("RGB", img.size, (255, 255, 255))
+            if img.mode == "RGBA":
+                background.paste(img, mask=img.split()[3])  # Use alpha channel as mask
+            else:  # LA mode
+                background.paste(img.convert("RGB"), mask=img.split()[1])
+            img = background
+        elif img.mode == "PA":
+            # Palette with alpha
+            img = img.convert("RGBA")
+            background = Image.new("RGB", img.size, (255, 255, 255))
+            background.paste(img, mask=img.split()[3])
+            img = background
+        elif img.mode == "P" and "transparency" in img.info:
+            # Palette with transparency
+            img = img.convert("RGBA")
+            background = Image.new("RGB", img.size, (255, 255, 255))
+            background.paste(img, mask=img.split()[3])
+            img = background
+        elif img.mode not in ("RGB", "L"):
+            # Convert other modes to RGB
+            img = img.convert("RGB")
+
+        # Save as PNG
+        buffer = BytesIO()
+        img.save(buffer, format="PNG")
+        image_bytes = buffer.getvalue()
+
+        return img, image_bytes
