@@ -147,6 +147,15 @@ class AltTextGenerator:
         else:
             validation_passed, warnings = self._validate_alt_text(alt_text)
 
+        # Calculate confidence score based on quality factors
+        confidence_score = self._calculate_confidence_score(
+            alt_text, 
+            is_decorative, 
+            validation_passed, 
+            warnings,
+            len(merged_context) > 0
+        )
+
         # Track processing time
         processing_time = time.time() - start_time
 
@@ -161,7 +170,7 @@ class AltTextGenerator:
             image_id=image_metadata.image_id,
             alt_text=alt_text,
             is_decorative=is_decorative,
-            confidence_score=0.85,  # Default confidence
+            confidence_score=confidence_score,
             validation_passed=validation_passed,
             validation_warnings=warnings,
             tokens_used=total_tokens,
@@ -343,6 +352,63 @@ class AltTextGenerator:
             corrected += "."
 
         return corrected, is_decorative
+
+    def _calculate_confidence_score(
+        self,
+        alt_text: str,
+        is_decorative: bool,
+        validation_passed: bool,
+        warnings: list[str],
+        has_context: bool,
+    ) -> float:
+        """
+        Calculate confidence score based on quality factors.
+
+        Confidence is based on:
+        - Validation status (major factor)
+        - Length appropriateness
+        - Context availability
+        - Number of warnings
+
+        Args:
+            alt_text: Generated alt-text.
+            is_decorative: Whether image is decorative.
+            validation_passed: Whether validation passed.
+            warnings: List of validation warnings.
+            has_context: Whether document context was available.
+
+        Returns:
+            Confidence score between 0.0 and 1.0.
+        """
+        # Start with base confidence
+        confidence = 0.85
+
+        # Decorative images get high confidence (simple decision)
+        if is_decorative:
+            return 0.95
+
+        # Major deduction if validation failed
+        if not validation_passed:
+            confidence -= 0.25
+
+        # Deduct for each warning
+        confidence -= len(warnings) * 0.05
+
+        # Check length quality
+        length = len(alt_text)
+        if self.PREFERRED_MIN <= length <= self.PREFERRED_MAX:
+            confidence += 0.10  # Bonus for ideal length
+        elif length < self.MIN_LENGTH:
+            confidence -= 0.15  # Penalty for too short
+        elif length > self.MAX_LENGTH:
+            confidence -= 0.15  # Penalty for too long
+
+        # Bonus for having context
+        if has_context:
+            confidence += 0.05
+
+        # Ensure confidence stays within bounds
+        return max(0.1, min(1.0, confidence))
 
     def _calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
         """

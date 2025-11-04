@@ -19,6 +19,7 @@ from ada_annotator.config import Settings
 from ada_annotator.document_processors import (
     DOCXAssembler,
     DOCXExtractor,
+    PDFExtractor,
     PPTXAssembler,
     PPTXExtractor,
 )
@@ -137,7 +138,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
 
 
 def validate_input_file(
-    input_path: Path, logger: structlog.BoundLogger
+    input_path: Path, logger: structlog.BoundLogger, debug_mode: bool = False
 ) -> None:
     """
     Validate input file exists and is a supported format.
@@ -145,6 +146,7 @@ def validate_input_file(
     Args:
         input_path: Path to input file.
         logger: Structured logger instance.
+        debug_mode: Whether debug mode is enabled (allows PDF).
 
     Raises:
         FileNotFoundError: If input file does not exist.
@@ -161,6 +163,9 @@ def validate_input_file(
 
     # Check supported format
     supported_extensions = [".docx", ".pptx"]
+    if debug_mode:
+        supported_extensions.append(".pdf")
+
     if input_path.suffix.lower() not in supported_extensions:
         logger.error(
             "unsupported_file_format",
@@ -168,10 +173,13 @@ def validate_input_file(
             extension=input_path.suffix,
             supported=supported_extensions,
         )
-        raise ValueError(
+        error_msg = (
             f"Unsupported file format: {input_path.suffix}. "
             f"Supported formats: {', '.join(supported_extensions)}"
         )
+        if input_path.suffix.lower() == ".pdf" and not debug_mode:
+            error_msg += " (PDF is only supported with --debug flag)"
+        raise ValueError(error_msg)
 
     logger.info(
         "input_file_validated",
@@ -325,6 +333,9 @@ def process_document_dry_run(
     elif input_path.suffix.lower() == ".pptx":
         extractor = PPTXExtractor(input_path)
         doc_format = "PPTX"
+    elif input_path.suffix.lower() == ".pdf":
+        extractor = PDFExtractor(input_path)
+        doc_format = "PDF"
     else:
         raise ValueError(f"Unsupported format: {input_path.suffix}")
 
@@ -397,6 +408,9 @@ async def process_document(
     elif input_path.suffix.lower() == ".pptx":
         extractor = PPTXExtractor(input_path)
         doc_format = "PPTX"
+    elif input_path.suffix.lower() == ".pdf":
+        extractor = PDFExtractor(input_path)
+        doc_format = "PDF"
     else:
         raise ValueError(f"Unsupported format: {input_path.suffix}")
 
@@ -578,9 +592,9 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
-        # Validate input file
+        # Validate input file (PDF only allowed in debug mode)
         input_path = Path(args.input)
-        validate_input_file(input_path, logger)
+        validate_input_file(input_path, logger, debug_mode=args.debug)
 
         # Generate or validate output path
         if args.output:

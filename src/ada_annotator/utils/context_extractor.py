@@ -56,11 +56,18 @@ class ContextExtractor:
         if suffix == ".docx":
             self.docx_document = DocxDocument(str(document_path))
             self.pptx_document = None
+            self.pdf_document = None
             self.document_type = "DOCX"
         elif suffix == ".pptx":
             self.docx_document = None
             self.pptx_document = Presentation(str(document_path))
+            self.pdf_document = None
             self.document_type = "PPTX"
+        elif suffix == ".pdf":
+            self.docx_document = None
+            self.pptx_document = None
+            self.pdf_document = None  # PDF doesn't need to be loaded for context
+            self.document_type = "PDF"
         else:
             raise ValueError(f"Unsupported document format: {suffix}")
 
@@ -229,6 +236,7 @@ class ContextExtractor:
 
         For DOCX: Searches backwards from paragraph index
         For PPTX: Uses slide title (if available)
+        For PDF: Returns None (no section context available)
 
         Args:
             image_metadata: Metadata for the image.
@@ -238,8 +246,10 @@ class ContextExtractor:
         """
         if self.document_type == "DOCX":
             return self._extract_docx_section_context(image_metadata)
-        else:  # PPTX
+        elif self.document_type == "PPTX":
             return self._extract_pptx_section_context(image_metadata)
+        else:  # PDF
+            return None
 
     def _extract_docx_section_context(
         self, image_metadata: ImageMetadata
@@ -352,8 +362,10 @@ class ContextExtractor:
             return self._extract_docx_local_context(
                 image_metadata, paragraphs_before, paragraphs_after
             )
-        else:  # PPTX
+        elif self.document_type == "PPTX":
             return self._extract_pptx_local_context(image_metadata)
+        else:  # PDF
+            return ""  # No local context available for PDF
 
     def _extract_docx_local_context(
         self,

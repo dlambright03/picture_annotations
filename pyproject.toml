@@ -26,23 +26,20 @@ dependencies = [
     "pypdf>=3.17.0",
     "python-pptx>=0.6.23",
     "pillow>=10.1.0",
-
     # AI and Semantic Kernel
     "semantic-kernel>=1.0.0",
     "openai>=1.12.0",
     "azure-identity>=1.15.0",
-
     # Web Framework (Streamlit)
     "streamlit>=1.31.0",
-
     # Utilities
     "python-dotenv>=1.0.0",
     "pydantic>=2.6.0",
     "pydantic-settings>=2.1.0",
-
     # Logging and Monitoring
     "structlog>=24.1.0",
     "rich>=13.7.0",
+    "pymupdf>=1.26.5",
 ]
 
 [project.optional-dependencies]
@@ -66,6 +63,11 @@ dev = [
     "mkdocs-material>=9.5.0",
 ]
 
+pdf = [
+    # PDF image extraction (debug mode only)
+    "PyMuPDF>=1.23.0",
+]
+
 ocr = [
     # Optional OCR capabilities
     "pytesseract>=0.3.10",
@@ -73,7 +75,7 @@ ocr = [
 ]
 
 all = [
-    "ada-annotator[dev,ocr]",
+    "ada-annotator[dev,pdf,ocr]",
 ]
 
 [project.urls]
