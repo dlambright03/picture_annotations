@@ -149,9 +149,9 @@ class AltTextGenerator:
 
         # Calculate confidence score based on quality factors
         confidence_score = self._calculate_confidence_score(
-            alt_text, 
-            is_decorative, 
-            validation_passed, 
+            alt_text,
+            is_decorative,
+            validation_passed,
             warnings,
             len(merged_context) > 0
         )
