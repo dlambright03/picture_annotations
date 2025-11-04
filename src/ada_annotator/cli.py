@@ -282,18 +282,22 @@ def generate_debug_output_path(input_path: Path) -> Path:
     Generate default debug output path from input path.
 
     Adds '_debug' suffix before file extension.
+    Always outputs as .docx regardless of input format.
 
     Args:
         input_path: Path to input file.
 
     Returns:
-        Path: Generated debug output file path.
+        Path: Generated debug output file path (always .docx).
 
     Example:
         >>> generate_debug_output_path(Path("document.docx"))
         Path("document_debug.docx")
+        >>> generate_debug_output_path(Path("presentation.pptx"))
+        Path("presentation_debug.docx")
     """
-    return input_path.with_stem(f"{input_path.stem}_debug")
+    # Always use .docx extension for debug output
+    return input_path.with_stem(f"{input_path.stem}_debug").with_suffix(".docx")
 
 
 def process_document_dry_run(

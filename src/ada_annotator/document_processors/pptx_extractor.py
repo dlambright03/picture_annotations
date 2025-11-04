@@ -230,7 +230,7 @@ class PPTXExtractor(DocumentExtractor):
             # Create unique image ID
             image_id = f"slide{slide_idx}_shape{shape_idx}"
 
-            # Create ImageMetadata
+            # Create ImageMetadata with binary data
             metadata = ImageMetadata(
                 image_id=image_id,
                 filename=f"{image_id}.{format_str.lower()}",
@@ -241,6 +241,7 @@ class PPTXExtractor(DocumentExtractor):
                 page_number=slide_idx + 1,  # 1-based slide number
                 position=position,
                 existing_alt_text=alt_text,
+                image_data=image_bytes,  # Store binary data for processing
             )
 
             self.logger.debug(
