@@ -100,10 +100,10 @@ class TestGenerateOutputPaths:
         """Should work with different file extensions."""
         for ext in [".docx", ".pptx", ".pdf"]:
             input_path = Path(f"document{ext}")
-            
+
             json_path = generate_json_output_path(input_path)
             assert json_path == Path("document_alttext.json")
-            
+
             html_path = generate_html_output_path(input_path)
             assert html_path == Path("document_alttext.html")
 
