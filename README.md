@@ -13,15 +13,20 @@ Help college professors and educators make their educational documents ADA-compl
 ## ✨ Features (Phase 1 Complete)
 
 - 📄 **DOCX & PPTX Processing**: Extract images from Microsoft Word and PowerPoint files
+- 📋 **PDF Support**: Extract images from PDFs (debug/extract mode only)
 - 🤖 **AI-Powered Alt-Text**: Generate ADA-compliant descriptions using GPT-4o Vision
-- 🔄 **Semantic Kernel Integration**: Robust AI orchestration with retry logic and error handling
+- 🔄 **Two-Step Workflow**: Separate generation from application for manual review
 - 📊 **Context-Aware Generation**: 5-level hierarchical context extraction for accurate descriptions
+- 🎯 **Dynamic Confidence Scoring**: Quality-based scores (0.1-1.0) considering validation, warnings, and length
+- 🖼️ **Image Embedding**: JSON includes base64-encoded images for human review
 - ✅ **ADA Compliance Validation**: Automatic validation of length, content, and formatting
+- 💾 **Reusable Alt-Text**: Generate once, apply to multiple document versions
 - 🎯 **Position Preservation**: Images remain in exact original positions
-- � **Comprehensive Reporting**: Markdown reports with statistics, costs, and error tracking
+- 📝 **Comprehensive Reporting**: Markdown reports with statistics, costs, and error tracking
 - ⚡ **Batch Processing**: Process multiple images with progress tracking
 - 🛡️ **Error Resilience**: Continue processing on individual failures
 - 📝 **Structured Logging**: JSON logs with correlation IDs for debugging
+- 🔄 **Semantic Kernel Integration**: Robust AI orchestration with retry logic and error handling
 
 ## 🚀 Quick Start
 
@@ -84,10 +89,88 @@ See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed setup instructions and trouble
 
 ### Command Line Interface (CLI)
 
-The primary interface for Phase 1 is the command-line tool:
+The primary interface offers two workflow options:
+
+#### **Two-Step Workflow (Recommended)**
+
+The two-step workflow separates alt-text generation from document modification, allowing manual review:
 
 ```bash
-# Basic usage - process a DOCX file (using uv) - INPUT IS POSITIONAL
+# Step 1: Extract images and generate alt-text (saves to JSON + HTML)
+uv run annotate extract document.docx -o alttext.json
+
+# Step 2: Review the HTML file - open in your browser to see images!
+# - Open document_alttext.html in any browser
+# - See images displayed alongside their alt-text
+# - Beautiful, interactive report with metadata
+# (JSON file is also created for programmatic access)
+
+# Step 3: Apply reviewed alt-text to document
+uv run annotate apply document.docx alttext.json -o annotated.docx
+```
+
+**Benefits of Two-Step Workflow:**
+- 💰 **Cost Savings**: Generate once, apply to multiple output formats
+- 👁️ **Manual Review**: Beautiful HTML report showing images with their alt-text
+- ✏️ **Editable**: Modify alt-text in JSON before applying
+- 🔄 **Reusable**: Apply same alt-text to updated document versions
+- 📊 **Traceable**: Both HTML (human-readable) and JSON (machine-readable) formats
+
+**Extract Command Options:**
+```bash
+# Basic extraction
+uv run annotate extract document.docx
+
+# Specify output JSON path
+uv run annotate extract document.docx -o my_alttext.json
+
+# Include external context for better descriptions
+uv run annotate extract document.docx -o alttext.json -c course_context.txt
+
+# Limit to first 5 images (for testing)
+uv run annotate extract document.docx --max-images 5
+
+# Works with DOCX, PPTX, and PDF
+uv run annotate extract presentation.pptx -o alttext.json
+```
+
+**Apply Command Options:**
+```bash
+# Basic application
+uv run annotate apply document.docx alttext.json
+
+# Specify output path
+uv run annotate apply document.docx alttext.json -o final.docx
+
+# Create backup before applying
+uv run annotate apply document.docx alttext.json --backup
+```
+
+**JSON Format:**
+The intermediate JSON file includes:
+- Base64-encoded images (for programmatic access)
+- Generated alt-text for each image
+- Confidence scores and validation results
+- Image metadata (dimensions, position, format)
+- Processing statistics and timestamps
+
+**HTML Report:**
+A beautiful, interactive HTML file is also generated showing:
+- 🖼️ **Visual Display**: Images shown directly (no base64 decoding needed)
+- 📊 **Statistics Dashboard**: Overview of processing results
+- ✅ **Validation Status**: Color-coded badges for each image
+- 📏 **Metadata**: Dimensions, file size, confidence scores
+- ⚠️ **Warnings**: Highlighted validation issues
+- 🎨 **Modern Design**: Responsive, gradient UI with smooth animations
+
+Simply open the HTML file in any browser to review your images and their alt-text!
+
+#### **Single-Step Workflow (Legacy)**
+
+For backward compatibility, the original single-step workflow is still supported:
+
+```bash
+# Process a DOCX file directly (using uv) - INPUT IS POSITIONAL
 uv run annotate document.docx --output annotated.docx
 
 # Process a PowerPoint presentation
@@ -100,6 +183,9 @@ uv run annotate document.docx \
 
 # Dry-run mode (extract images and preview without generating alt-text)
 uv run annotate document.docx --dry-run
+
+# Debug mode (create debug document with images and annotations)
+uv run annotate document.docx --debug
 
 # Limit processing to first 5 images (for testing)
 uv run annotate document.docx \
@@ -116,7 +202,23 @@ uv run annotate document.docx \
 
 ### Common Workflows
 
-**1. Quick Test with Sample Document:**
+**1. Two-Step Review Workflow (Recommended):**
+```bash
+# Extract and generate alt-text
+uv run annotate extract lecture_notes.docx -o alttext.json
+
+# Open the HTML file in your browser to review
+# lecture_notes_alttext.html shows all images with their alt-text
+# Edit JSON file if you need to modify any alt-text
+
+# Apply to original document
+uv run annotate apply lecture_notes.docx alttext.json -o final_lecture.docx
+
+# Or apply to different format/version
+uv run annotate apply lecture_notes_v2.docx alttext.json -o final_v2.docx
+```
+
+**2. Quick Single-Step Processing:**
 ```bash
 # Process sample document with debug logging
 uv run annotate tests/fixtures/documents/sample.docx \
@@ -124,27 +226,57 @@ uv run annotate tests/fixtures/documents/sample.docx \
     --log-level DEBUG
 ```
 
-**2. Batch Processing Multiple Documents:**
+**3. Batch Processing Multiple Documents:**
 ```bash
-# Process all DOCX files in a directory (using PowerShell)
+# Extract alt-text for all DOCX files (using PowerShell)
 Get-ChildItem *.docx | ForEach-Object {
-    uv run annotate $_.Name --output "output/$($_.Name)"
+    uv run annotate extract $_.Name -o "json/$($_.BaseName)_alttext.json"
+}
+
+# Review JSON files, then apply
+Get-ChildItem json/*.json | ForEach-Object {
+    $docName = $_.BaseName -replace '_alttext$','.docx'
+    uv run annotate apply $docName $_.FullName -o "output/$docName"
 }
 ```
 
-**3. Educational Content with Context:**
+**4. Educational Content with Context:**
 ```bash
 # Include course context for better descriptions
-uv run annotate lecture_notes.docx \
-    --output annotated_lecture.docx \
-    --context course_context.md \
+uv run annotate extract lecture_notes.docx \
+    -o alttext.json \
+    -c course_context.md \
     --log-level INFO
+
+# Review and apply
+uv run annotate apply lecture_notes.docx alttext.json -o annotated_lecture.docx
 ```
 
 ### Output Files
 
-After processing, you'll get:
+#### Two-Step Workflow Output:
+After extraction:
+- **JSON File**: `{input_name}_alttext.json` containing:
+  - Base64-encoded images for programmatic access
+  - AI-generated alt-text for each image
+  - Confidence scores (0.1-1.0) based on quality factors
+  - Validation results and warnings
+  - Image metadata (dimensions, position, format)
+  - Processing statistics
+- **HTML Report**: `{input_name}_alttext.html` - beautiful interactive report showing:
+  - Images displayed directly in the browser
+  - Alt-text alongside each image
+  - Statistics dashboard with processing metrics
+  - Color-coded validation badges
+  - Metadata and warnings clearly highlighted
+  - Modern, responsive design
 
+After application:
+- **Annotated Document**: Original document with alt-text applied
+- **JSON Log File**: `logs/ada-annotator.log` with structured logs
+
+#### Single-Step Workflow Output:
+After processing:
 - **Annotated Document**: Your original document with AI-generated alt-text applied
 - **Markdown Report**: `{output_name}_report.md` with:
   - Processing statistics (success rate, duration)

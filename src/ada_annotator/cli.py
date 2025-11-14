@@ -29,6 +29,13 @@ from ada_annotator.models import DocumentProcessingResult
 from ada_annotator.utils.context_extractor import ContextExtractor
 from ada_annotator.utils.error_handler import handle_error
 from ada_annotator.utils.error_tracker import ErrorCategory, ErrorTracker
+from ada_annotator.utils.json_handler import (
+    generate_html_output_path,
+    generate_json_output_path,
+    load_alt_text_from_json,
+    save_alt_text_to_html,
+    save_alt_text_to_json,
+)
 from ada_annotator.utils.logging import get_logger, setup_logging
 from ada_annotator.utils.report_generator import ReportGenerator
 
@@ -54,16 +61,87 @@ def create_argument_parser() -> argparse.ArgumentParser:
         version=f"%(prog)s {__version__}",
     )
 
-    # Required positional argument
-    parser.add_argument(
-        "input",
+    # Create subparsers for different commands
+    subparsers = parser.add_subparsers(
+        dest="command",
+        help="Command to execute",
+        required=True,
+    )
+
+    # EXTRACT command - Generate alt-text and save to JSON
+    extract_parser = subparsers.add_parser(
+        "extract",
+        help="Extract images and generate alt-text (save to JSON)",
+        description="Extract images from document and generate alt-text, saving results to JSON for review and later application",
+    )
+
+    extract_parser.add_argument(
+        "extract_input",
+        type=str,
+        metavar="INPUT_FILE",
+        help="Path to input document file (DOCX, PPTX, or PDF)",
+    )
+
+    extract_parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        metavar="JSON_FILE",
+        help="Path to output JSON file (default: INPUT_alttext.json)",
+    )
+
+    extract_parser.add_argument(
+        "-c",
+        "--context",
+        type=str,
+        metavar="CONTEXT_FILE",
+        help="Path to external context file (TXT or MD)",
+    )
+
+    extract_parser.add_argument(
+        "--max-images",
+        type=int,
+        metavar="N",
+        help="Limit processing to first N images (for testing)",
+    )
+
+    extract_parser.add_argument(
+        "--config",
+        type=str,
+        metavar="CONFIG_FILE",
+        help="Path to configuration file",
+    )
+
+    extract_parser.add_argument(
+        "--log-level",
+        type=str,
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        default="INFO",
+        help="Set logging level (default: INFO)",
+    )
+
+    # APPLY command - Apply alt-text from JSON to document
+    apply_parser = subparsers.add_parser(
+        "apply",
+        help="Apply alt-text from JSON to document",
+        description="Apply previously generated alt-text from JSON file to document images",
+    )
+
+    apply_parser.add_argument(
+        "apply_input",
         type=str,
         metavar="INPUT_FILE",
         help="Path to input document file (DOCX or PPTX)",
     )
 
-    # Optional arguments
-    parser.add_argument(
+    apply_parser.add_argument(
+        "alttext",
+        type=str,
+        metavar="JSON_FILE",
+        help="Path to JSON file with alt-text data",
+    )
+
+    apply_parser.add_argument(
         "-o",
         "--output",
         type=str,
@@ -71,62 +149,13 @@ def create_argument_parser() -> argparse.ArgumentParser:
         help="Path to output file (default: INPUT_annotated.EXT)",
     )
 
-    parser.add_argument(
-        "-c",
-        "--context",
-        type=str,
-        metavar="CONTEXT_FILE",
-        help="Path to external context file (TXT or MD) to enhance alt-text generation",
-    )
-
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Enable verbose logging to console (DEBUG level)",
-    )
-
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Preview processing without modifying or creating any files",
-    )
-
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Generate debug document with images and annotations instead of applying alt-text",
-    )
-
-    parser.add_argument(
-        "-b",
+    apply_parser.add_argument(
         "--backup",
         action="store_true",
-        help="Create backup of original file before processing",
+        help="Create backup of input file before modifying",
     )
 
-    parser.add_argument(
-        "--config",
-        type=str,
-        metavar="CONFIG_FILE",
-        help="Path to custom configuration JSON file (default: config.json)",
-    )
-
-    parser.add_argument(
-        "--log-file",
-        type=str,
-        metavar="LOG_FILE",
-        help="Path to log file (default: ada_annotator.log)",
-    )
-
-    parser.add_argument(
-        "--max-images",
-        type=int,
-        metavar="N",
-        help="Maximum number of images to process (default: unlimited)",
-    )
-
-    parser.add_argument(
+    apply_parser.add_argument(
         "--log-level",
         type=str,
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
@@ -553,6 +582,212 @@ async def process_document(
     return result
 
 
+async def command_extract(
+    input_path: Path,
+    output_path: Path,
+    context_path: Path | None,
+    max_images: int | None,
+    logger: structlog.BoundLogger,
+) -> int:
+    """
+    Extract images and generate alt-text, saving to JSON.
+
+    Args:
+        input_path: Path to input document.
+        output_path: Path to output JSON file.
+        context_path: Path to external context file (optional).
+        max_images: Maximum number of images to process.
+        logger: Structured logger instance.
+
+    Returns:
+        int: Exit code (0 for success, non-zero for errors).
+    """
+    start_time = time.time()
+
+    # Step 1: Extract images
+    print("[1/3] Extracting images...")
+    if input_path.suffix.lower() == ".docx":
+        extractor = DOCXExtractor(input_path)
+        doc_format = "DOCX"
+    elif input_path.suffix.lower() == ".pptx":
+        extractor = PPTXExtractor(input_path)
+        doc_format = "PPTX"
+    elif input_path.suffix.lower() == ".pdf":
+        extractor = PDFExtractor(input_path)
+        doc_format = "PDF"
+    else:
+        raise ValueError(f"Unsupported format: {input_path.suffix}")
+
+    images = extractor.extract_images()
+
+    # Apply max_images limit
+    if max_images and len(images) > max_images:
+        logger.info(f"Limiting to first {max_images} images")
+        images = images[:max_images]
+
+    print(f"    Found {len(images)} images")
+
+    if len(images) == 0:
+        logger.warning("no_images_found")
+        print("\n[!] No images found in document")
+        return EXIT_SUCCESS
+
+    # Step 2: Initialize AI services
+    print("[2/3] Initializing AI services...")
+    try:
+        settings = Settings()
+        ai_service = SemanticKernelService(settings)
+        context_extractor = ContextExtractor(
+            document_path=input_path, external_context_path=context_path
+        )
+        generator = AltTextGenerator(
+            settings, ai_service, context_extractor
+        )
+        print("    AI services ready")
+    except Exception as e:
+        logger.error("ai_initialization_failed", error=str(e))
+        raise
+
+    # Step 3: Generate alt-text
+    print(f"[3/3] Generating alt-text for {len(images)} images...")
+    alt_text_results = await generator.generate_for_multiple_images(
+        images, continue_on_error=True
+    )
+
+    succeeded = len(alt_text_results)
+    failed = len(images) - succeeded
+
+    print(f"    Generated {succeeded}/{len(images)} alt-texts")
+
+    # Save to JSON
+    save_alt_text_to_json(alt_text_results, images, output_path, input_path)
+
+    # Generate HTML report for easy viewing
+    html_path = generate_html_output_path(input_path)
+    save_alt_text_to_html(alt_text_results, images, html_path, input_path)
+
+    duration = time.time() - start_time
+    total_tokens = sum(r.tokens_used for r in alt_text_results)
+
+    print(f"\n✓ Alt-text saved to: {output_path}")
+    print(f"✓ HTML report created: {html_path}")
+    print(f"  - Images processed: {succeeded}/{len(images)}")
+    print(f"  - Processing time: {duration:.1f}s")
+    print(f"  - Tokens used: {total_tokens:,}")
+    print(f"\n[+] Open {html_path} in your browser to review images and alt-text")
+    print(f"[+] When satisfied, run: annotate apply {input_path} {output_path}")
+
+    return EXIT_SUCCESS
+
+
+async def command_apply(
+    input_path: Path,
+    json_path: Path,
+    output_path: Path,
+    backup: bool,
+    logger: structlog.BoundLogger,
+) -> int:
+    """
+    Apply alt-text from JSON to document.
+
+    Args:
+        input_path: Path to input document.
+        json_path: Path to JSON file with alt-text.
+        output_path: Path to output document.
+        backup: Whether to create backup of original file.
+        logger: Structured logger instance.
+
+    Returns:
+        int: Exit code (0 for success, non-zero for errors).
+    """
+    start_time = time.time()
+
+    # Step 1: Load JSON data
+    print("[1/3] Loading alt-text from JSON...")
+    try:
+        json_data = load_alt_text_from_json(json_path)
+    except (FileNotFoundError, ValueError) as e:
+        logger.error("json_load_failed", error=str(e))
+        print(f"\n[!] Error loading JSON: {e}")
+        return EXIT_INPUT_ERROR
+
+    # Verify document matches
+    source_doc = Path(json_data["source_document"])
+    if source_doc.name != input_path.name:
+        logger.warning(
+            "document_mismatch",
+            json_source=str(source_doc),
+            input_file=str(input_path),
+        )
+        print(f"\n[!] Warning: JSON was created from '{source_doc.name}'")
+        print(f"    but you're applying to '{input_path.name}'")
+        response = input("    Continue anyway? (y/N): ")
+        if response.lower() != "y":
+            print("    Aborted")
+            return EXIT_INPUT_ERROR
+
+    alt_text_results = json_data["alt_text_results"]
+    print(f"    Loaded {len(alt_text_results)} alt-text entries")
+
+    # Step 2: Create backup if requested
+    if backup:
+        print("[2/3] Creating backup...")
+        backup_path = input_path.with_stem(f"{input_path.stem}_backup")
+        import shutil
+        shutil.copy2(input_path, backup_path)
+        logger.info("backup_created", backup_path=str(backup_path))
+        print(f"    Backup created: {backup_path}")
+    else:
+        print("[2/3] Skipping backup...")
+
+    # Step 3: Apply alt-text to document
+    print("[3/3] Applying alt-text to document...")
+
+    doc_format = input_path.suffix.upper().lstrip(".")
+
+    # Convert JSON data to AltTextResult objects
+    from ada_annotator.models import AltTextResult
+    results = [
+        AltTextResult(
+            image_id=item["image_id"],
+            alt_text=item["alt_text"],
+            is_decorative=item["is_decorative"],
+            confidence_score=item["confidence_score"],
+            validation_passed=item["validation_passed"],
+            validation_warnings=item["validation_warnings"],
+            tokens_used=item["tokens_used"],
+            processing_time_seconds=item["processing_time_seconds"],
+        )
+        for item in alt_text_results
+    ]
+
+    # Apply using appropriate assembler
+    if doc_format == "DOCX":
+        assembler = DOCXAssembler(input_path, output_path)
+    elif doc_format == "PPTX":
+        assembler = PPTXAssembler(input_path, output_path)
+    else:
+        print(f"\n[!] Error: Cannot apply alt-text to {doc_format} files")
+        return EXIT_INPUT_ERROR
+
+    status_map = assembler.apply_alt_text(results)
+    assembler.save_document()
+
+    # Count successes
+    successes = sum(1 for status in status_map.values() if status == "success")
+    failures = len(status_map) - successes
+
+    duration = time.time() - start_time
+
+    print(f"\n✓ Document saved to: {output_path}")
+    print(f"  - Alt-texts applied: {successes}/{len(status_map)}")
+    if failures > 0:
+        print(f"  - Failed: {failures}")
+    print(f"  - Processing time: {duration:.1f}s")
+
+    return EXIT_SUCCESS
+
+
 def main(argv: list[str] | None = None) -> int:
     """
     Main entry point for the CLI.
@@ -569,10 +804,10 @@ def main(argv: list[str] | None = None) -> int:
 
     # Setup logging
     log_file = (
-        Path(args.log_file) if args.log_file else Path("ada_annotator.log")
+        Path(args.log_file) if hasattr(args, "log_file") and args.log_file else Path("ada_annotator.log")
     )
-    log_level = "DEBUG" if args.verbose else args.log_level
-    enable_console = args.verbose
+    log_level = "DEBUG" if (hasattr(args, "verbose") and args.verbose) else args.log_level
+    enable_console = hasattr(args, "verbose") and args.verbose
 
     try:
         setup_logging(
@@ -592,92 +827,95 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
-        # Validate input file (PDF only allowed in debug mode)
-        input_path = Path(args.input)
-        validate_input_file(input_path, logger, debug_mode=args.debug)
+        # Route to appropriate command handler
+        if args.command == "extract":
+            # EXTRACT command - Generate alt-text and save to JSON
+            input_path = Path(args.extract_input)
+            validate_input_file(input_path, logger, debug_mode=False)
 
-        # Generate or validate output path
-        if args.output:
-            output_path = Path(args.output)
-        else:
-            if args.debug:
-                output_path = generate_debug_output_path(input_path)
+            # Generate or validate JSON output path
+            if args.output:
+                output_path = Path(args.output)
             else:
-                output_path = generate_output_path(input_path)
-            logger.info("output_path_generated", path=str(output_path))
+                output_path = generate_json_output_path(input_path)
+                logger.info("json_path_generated", path=str(output_path))
 
-        # Validate output directory
-        validate_output_directory(output_path, logger)
+            validate_output_directory(output_path, logger)
 
-        # Validate context file if provided
-        if args.context:
-            context_path = Path(args.context)
-            validate_context_file(context_path, logger)
+            # Validate context file if provided
+            context_path = None
+            if args.context:
+                context_path = Path(args.context)
+                validate_context_file(context_path, logger)
 
-        # Display processing summary
-        print(f"\nADA Annotator v{__version__}")
-        print("=" * 70)
-        print(f"Input File:    {input_path}")
-        print(f"Output File:   {output_path}")
-        if args.context:
-            print(f"Context File:  {args.context}")
-        if args.debug:
-            print(
-                "\n[DEBUG MODE] Will generate debug document with images "
-                "and annotations"
-            )
-        if args.dry_run:
-            print("\n[!] DRY RUN MODE - No files will be modified")
-        if args.backup:
-            print("\n[+] Backup will be created before processing")
-        print("=" * 70)
+            # Display processing summary
+            print(f"\nADA Annotator v{__version__} - EXTRACT MODE")
+            print("=" * 70)
+            print(f"Input File:    {input_path}")
+            print(f"Output JSON:   {output_path}")
+            if context_path:
+                print(f"Context File:  {context_path}")
+            if args.max_images:
+                print(f"Max Images:    {args.max_images}")
+            print("=" * 70)
 
-        logger.info(
-            "validation_complete",
-            input_path=str(input_path),
-            output_path=str(output_path),
-            context_path=args.context,
-            dry_run=args.dry_run,
-            backup=args.backup,
-        )
-
-        # Process the document
-        if args.dry_run:
-            print("\n[!] DRY RUN MODE - Extracting images only...")
-            result = process_document_dry_run(
-                input_path, args.context, logger
-            )
-        else:
-            print("\n[+] Processing document...")
-            result = asyncio.run(
-                process_document(
+            # Execute extract command
+            return asyncio.run(
+                command_extract(
                     input_path=input_path,
                     output_path=output_path,
-                    context_path=Path(args.context) if args.context else None,
+                    context_path=context_path,
                     max_images=args.max_images,
-                    backup=args.backup,
-                    debug_mode=args.debug,
                     logger=logger,
                 )
             )
 
-        # Display summary
-        report_gen = ReportGenerator()
-        summary = report_gen.generate_summary(result)
-        print(f"\n{summary}")
+        elif args.command == "apply":
+            # APPLY command - Apply alt-text from JSON to document
+            input_path = Path(args.apply_input)
+            json_path = Path(args.alttext)
 
-        # Generate report
-        if not args.dry_run and len(result.images_processed) > 0:
-            report_path = output_path.with_name(
-                f"{output_path.stem}_report.md"
+            validate_input_file(input_path, logger, debug_mode=False)
+
+            # Validate JSON file exists
+            if not json_path.exists():
+                logger.error("json_file_not_found", path=str(json_path))
+                print(f"\nError: JSON file not found: {json_path}", file=sys.stderr)
+                return EXIT_INPUT_ERROR
+
+            # Generate or validate output path
+            if args.output:
+                output_path = Path(args.output)
+            else:
+                output_path = generate_output_path(input_path)
+                logger.info("output_path_generated", path=str(output_path))
+
+            validate_output_directory(output_path, logger)
+
+            # Display processing summary
+            print(f"\nADA Annotator v{__version__} - APPLY MODE")
+            print("=" * 70)
+            print(f"Input File:    {input_path}")
+            print(f"Alt-text JSON: {json_path}")
+            print(f"Output File:   {output_path}")
+            if args.backup:
+                print("\n[+] Backup will be created before processing")
+            print("=" * 70)
+
+            # Execute apply command
+            return asyncio.run(
+                command_apply(
+                    input_path=input_path,
+                    json_path=json_path,
+                    output_path=output_path,
+                    backup=args.backup,
+                    logger=logger,
+                )
             )
-            # For report generation, we need the full alt_text_results
-            # We'll need to store them or pass them differently
-            # For now, generate report without them (basic report)
-            print(f"\n[+] Processing complete. Output: {output_path}")
 
-        logger.info("cli_completed", exit_code=EXIT_SUCCESS)
-        return EXIT_SUCCESS
+        # This shouldn't be reached due to required=True on subparsers
+        parser.print_help()
+        return EXIT_INPUT_ERROR
 
     except (FileNotFoundError, ValueError) as e:
         logger.error("validation_failed", error=str(e))
