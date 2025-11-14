@@ -47,6 +47,7 @@ def sample_image_metadata(tmp_path):
         page_number=1,
         position={"paragraph_index": 5, "anchor_type": "inline"},
         existing_alt_text=None,
+        image_data=None,
     )
 
 
@@ -115,12 +116,13 @@ class TestChatHistoryBuilding:
 
     @patch("ada_annotator.ai_services.semantic_kernel_service.Kernel")
     @patch("ada_annotator.ai_services.semantic_kernel_service.AzureChatCompletion")
-    def test_builds_system_message(self, mock_chat, mock_kernel, mock_settings):
+    def test_builds_system_message(self, mock_chat, mock_kernel, mock_settings, sample_image_metadata):
         """Should add system message with alt-text guidelines."""
         service = SemanticKernelService(mock_settings)
         history = service._build_chat_history(
             context="Test context",
             image_base64="fake_base64",
+            image_metadata=sample_image_metadata,
         )
 
         assert isinstance(history, ChatHistory)
@@ -130,7 +132,7 @@ class TestChatHistoryBuilding:
 
     @patch("ada_annotator.ai_services.semantic_kernel_service.Kernel")
     @patch("ada_annotator.ai_services.semantic_kernel_service.AzureChatCompletion")
-    def test_includes_context_in_user_message(self, mock_chat, mock_kernel, mock_settings):
+    def test_includes_context_in_user_message(self, mock_chat, mock_kernel, mock_settings, sample_image_metadata):
         """Should include context text in user message."""
         service = SemanticKernelService(mock_settings)
         context = "Document about biology with diagrams"
@@ -138,6 +140,7 @@ class TestChatHistoryBuilding:
         history = service._build_chat_history(
             context=context,
             image_base64="fake_base64",
+            image_metadata=sample_image_metadata,
         )
 
         # User message should contain context
@@ -149,13 +152,14 @@ class TestChatHistoryBuilding:
 
     @patch("ada_annotator.ai_services.semantic_kernel_service.Kernel")
     @patch("ada_annotator.ai_services.semantic_kernel_service.AzureChatCompletion")
-    def test_includes_image_content(self, mock_chat, mock_kernel, mock_settings):
+    def test_includes_image_content(self, mock_chat, mock_kernel, mock_settings, sample_image_metadata):
         """Should include ImageContent in user message."""
         service = SemanticKernelService(mock_settings)
 
         history = service._build_chat_history(
             context="Test context",
             image_base64="fake_image_base64_data",
+            image_metadata=sample_image_metadata,
         )
 
         # Should have image content
@@ -175,7 +179,7 @@ class TestImageBase64Conversion:
         mock_convert.return_value = "base64_encoded_image"
 
         service = SemanticKernelService(mock_settings)
-        result = service._prepare_image(sample_image_metadata.filename)
+        result = service._prepare_image(sample_image_metadata)
 
         assert result == "base64_encoded_image"
         mock_convert.assert_called_once_with(
@@ -185,13 +189,27 @@ class TestImageBase64Conversion:
     @patch("ada_annotator.ai_services.semantic_kernel_service.Kernel")
     @patch("ada_annotator.ai_services.semantic_kernel_service.AzureChatCompletion")
     def test_handles_image_conversion_error(
-        self, mock_chat, mock_kernel, mock_settings
+        self, mock_chat, mock_kernel, mock_settings, sample_image_metadata
     ):
         """Should raise APIError if image conversion fails."""
         service = SemanticKernelService(mock_settings)
 
+        # Create invalid image metadata with nonexistent file
+        invalid_metadata = ImageMetadata(
+            image_id="invalid",
+            filename="nonexistent_image.png",
+            format="PNG",
+            size_bytes=1,  # Pydantic requires > 0
+            width_pixels=1,  # Pydantic requires > 0
+            height_pixels=1,  # Pydantic requires > 0
+            page_number=1,
+            position={},
+            existing_alt_text=None,
+            image_data=None,
+        )
+
         with pytest.raises((APIError, FileNotFoundError)):
-            service._prepare_image("nonexistent_image.png")
+            service._prepare_image(invalid_metadata)
 
 
 class TestAltTextGeneration:
@@ -203,13 +221,17 @@ class TestAltTextGeneration:
         self, mock_chat, mock_kernel, mock_settings, sample_image_metadata
     ):
         """Should generate alt-text for image with context."""
-        # Mock the kernel's get_chat_message_content_async to return a response
+        # Mock the response
         mock_response = Mock()
         mock_response.content = "A red diagram showing cellular structure."
+
+        # Create a mock chat service that returns the response
+        mock_chat_service = AsyncMock()
+        mock_chat_service.get_chat_message_content = AsyncMock(return_value=mock_response)
+
+        # Mock the kernel instance
         mock_kernel_instance = mock_kernel.return_value
-        mock_kernel_instance.get_chat_message_content_async = AsyncMock(
-            return_value=mock_response
-        )
+        mock_kernel_instance.get_service = Mock(return_value=mock_chat_service)
 
         service = SemanticKernelService(mock_settings)
         service.kernel = mock_kernel_instance
@@ -229,10 +251,14 @@ class TestAltTextGeneration:
         self, mock_chat, mock_kernel, mock_settings, sample_image_metadata
     ):
         """Should raise APIError on timeout."""
-        mock_kernel_instance = mock_kernel.return_value
-        mock_kernel_instance.get_chat_message_content_async = AsyncMock(
+        # Create a mock chat service that raises TimeoutError
+        mock_chat_service = AsyncMock()
+        mock_chat_service.get_chat_message_content = AsyncMock(
             side_effect=TimeoutError("Request timed out")
         )
+
+        mock_kernel_instance = mock_kernel.return_value
+        mock_kernel_instance.get_service = Mock(return_value=mock_chat_service)
 
         service = SemanticKernelService(mock_settings)
         service.kernel = mock_kernel_instance
@@ -273,12 +299,15 @@ class TestServiceAvailabilityCheck:
     @patch("ada_annotator.ai_services.semantic_kernel_service.AzureChatCompletion")
     async def test_checks_service_availability(self, mock_chat, mock_kernel, mock_settings):
         """Should verify service is reachable."""
-        mock_kernel_instance = mock_kernel.return_value
         mock_response = Mock()
         mock_response.content = "test"
-        mock_kernel_instance.get_chat_message_content_async = AsyncMock(
-            return_value=mock_response
-        )
+
+        # Create a mock chat service
+        mock_chat_service = AsyncMock()
+        mock_chat_service.get_chat_message_content = AsyncMock(return_value=mock_response)
+
+        mock_kernel_instance = mock_kernel.return_value
+        mock_kernel_instance.get_service = Mock(return_value=mock_chat_service)
 
         service = SemanticKernelService(mock_settings)
         service.kernel = mock_kernel_instance
@@ -292,10 +321,14 @@ class TestServiceAvailabilityCheck:
         self, mock_chat, mock_kernel, mock_settings
     ):
         """Should return False if service is unavailable."""
-        mock_kernel_instance = mock_kernel.return_value
-        mock_kernel_instance.get_chat_message_content_async = AsyncMock(
+        # Create a mock chat service that raises exception
+        mock_chat_service = AsyncMock()
+        mock_chat_service.get_chat_message_content = AsyncMock(
             side_effect=Exception("Service unavailable")
         )
+
+        mock_kernel_instance = mock_kernel.return_value
+        mock_kernel_instance.get_service = Mock(return_value=mock_chat_service)
 
         service = SemanticKernelService(mock_settings)
         service.kernel = mock_kernel_instance

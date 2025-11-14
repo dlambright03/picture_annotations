@@ -103,3 +103,44 @@ class TestErrorHandler:
             handle_error(error, exit_on_error=True)
 
         assert exc_info.value.code == EXIT_API_ERROR
+
+
+class TestErrorHandlingDecorator:
+    """Test suite for the with_error_handling decorator."""
+
+    def test_decorator_passes_through_success(self):
+        """Should pass through successful function calls."""
+        from ada_annotator.utils.error_handler import with_error_handling
+
+        @with_error_handling
+        def successful_function(x: int) -> int:
+            return x * 2
+
+        result = successful_function(5)
+        assert result == 10
+
+    def test_decorator_handles_ada_error(self):
+        """Should handle ADAAnnotatorError and exit."""
+        from ada_annotator.utils.error_handler import with_error_handling
+
+        @with_error_handling
+        def failing_function():
+            raise FileError("Test file error")
+
+        with pytest.raises(SystemExit) as exc_info:
+            failing_function()
+
+        assert exc_info.value.code == EXIT_INPUT_ERROR
+
+    def test_decorator_handles_unexpected_error(self):
+        """Should handle unexpected exceptions and exit."""
+        from ada_annotator.utils.error_handler import with_error_handling
+
+        @with_error_handling
+        def unexpected_error_function():
+            raise RuntimeError("Unexpected error")
+
+        with pytest.raises(SystemExit) as exc_info:
+            unexpected_error_function()
+
+        assert exc_info.value.code == EXIT_GENERAL_ERROR

@@ -412,3 +412,318 @@ class TestDOCXAssemblerIntegration:
 
         loaded_doc = Document(str(output_path))
         assert len(loaded_doc.paragraphs) == 2  # Original + added
+
+
+class TestDOCXAssemblerDecorativeImages:
+    """Test handling of decorative images."""
+
+    def test_apply_decorative_alt_text(
+        self,
+        sample_docx: Path,
+        output_path: Path
+    ):
+        """Test applying decorative flag (empty alt-text)."""
+        assembler = DOCXAssembler(sample_docx, output_path)
+
+        result = AltTextResult(
+            image_id="img-0-0",
+            alt_text="",
+            confidence_score=0.95,
+            validation_passed=True,
+            validation_warnings=[],
+            tokens_used=50,
+            processing_time_seconds=0.5,
+            timestamp=datetime.now(),
+            is_decorative=True,
+        )
+
+        # Mock internal method to track the call
+        assembler._apply_alt_text_to_image = Mock(
+            return_value="success (decorative)"
+        )
+
+        status_map = assembler.apply_alt_text([result])
+
+        assert len(status_map) == 1
+        assert "decorative" in status_map[result.image_id]
+
+
+class TestDOCXAssemblerHelperMethods:
+    """Test helper methods for image manipulation."""
+
+    def test_find_images_in_paragraph_with_mock(
+        self,
+        sample_docx: Path,
+        output_path: Path
+    ):
+        """Test finding images with mocked paragraph."""
+        assembler = DOCXAssembler(sample_docx, output_path)
+
+        # Create mock paragraph with mock runs
+        mock_paragraph = Mock()
+        mock_run = Mock()
+        mock_element = Mock()
+
+        # Mock the image element
+        mock_pic = Mock()
+        mock_element.findall.return_value = [mock_pic]
+
+        mock_run._element = mock_element
+        mock_paragraph.runs = [mock_run]
+        mock_paragraph._element.findall.return_value = []
+
+        images = assembler._find_images_in_paragraph(mock_paragraph)
+
+        # Should find one image from the run
+        assert len(images) >= 1
+
+    def test_set_alt_text_on_element_missing_nvpicpr(
+        self,
+        sample_docx: Path,
+        output_path: Path
+    ):
+        """Test setting alt-text when nvPicPr element is missing."""
+        assembler = DOCXAssembler(sample_docx, output_path)
+
+        # Create mock element without nvPicPr
+        mock_element = Mock()
+        mock_element.find.return_value = None
+        mock_element.nsmap = {}
+
+        result = assembler._set_alt_text_on_element(
+            mock_element, "Test alt-text"
+        )
+
+        assert result is False
+
+    def test_set_alt_text_on_element_missing_cnvpr(
+        self,
+        sample_docx: Path,
+        output_path: Path
+    ):
+        """Test setting alt-text when cNvPr element is missing."""
+        assembler = DOCXAssembler(sample_docx, output_path)
+
+        # Create mock element with nvPicPr but no cNvPr
+        mock_element = Mock()
+        mock_nvpicpr = Mock()
+        mock_nvpicpr.find.return_value = None
+        mock_element.find.return_value = mock_nvpicpr
+        mock_element.nsmap = {}
+
+        result = assembler._set_alt_text_on_element(
+            mock_element, "Test alt-text"
+        )
+
+        assert result is False
+
+    def test_set_alt_text_on_element_success(
+        self,
+        sample_docx: Path,
+        output_path: Path
+    ):
+        """Test successfully setting alt-text on element."""
+        assembler = DOCXAssembler(sample_docx, output_path)
+
+        # Create mock element with proper structure
+        mock_element = Mock()
+        mock_cnvpr = Mock()
+        mock_nvpicpr = Mock()
+        mock_nvpicpr.find.return_value = mock_cnvpr
+        mock_element.find.return_value = mock_nvpicpr
+        mock_element.nsmap = {}
+
+        result = assembler._set_alt_text_on_element(
+            mock_element, "Test alt-text"
+        )
+
+        assert result is True
+        # Verify both title and descr were set
+        assert mock_cnvpr.set.call_count == 2
+
+    def test_set_alt_text_on_element_exception(
+        self,
+        sample_docx: Path,
+        output_path: Path
+    ):
+        """Test handling exception during alt-text setting."""
+        assembler = DOCXAssembler(sample_docx, output_path)
+
+        # Create mock element that raises exception
+        mock_element = Mock()
+        mock_element.find.side_effect = Exception("XML error")
+
+        result = assembler._set_alt_text_on_element(
+            mock_element, "Test alt-text"
+        )
+
+        assert result is False
+
+
+class TestDOCXAssemblerImageIndexing:
+    """Test image indexing and position tracking."""
+
+    def test_apply_alt_text_image_index_out_of_range(
+        self,
+        sample_docx: Path,
+        output_path: Path
+    ):
+        """Test handling of image index out of range."""
+        assembler = DOCXAssembler(sample_docx, output_path)
+
+        result = AltTextResult(
+            image_id="img-0-999",  # Invalid image index
+            alt_text="Test alt text.",
+            confidence_score=0.9,
+            validation_passed=True,
+            validation_warnings=[],
+            tokens_used=100,
+            processing_time_seconds=1.0,
+            timestamp=datetime.now(),
+        )
+
+        status = assembler._apply_alt_text_to_image(result)
+
+        assert "out of range" in status.lower() or "no images" in status.lower()
+
+    def test_apply_alt_text_malformed_image_id(
+        self,
+        sample_docx: Path,
+        output_path: Path
+    ):
+        """Test handling of various malformed image IDs."""
+        assembler = DOCXAssembler(sample_docx, output_path)
+
+        malformed_ids = [
+            "img-abc-def",  # Non-numeric
+            "img-0",  # Missing image index
+            "wrong-0-0",  # Wrong prefix
+            "img--0--0",  # Extra dashes
+            "",  # Empty string
+        ]
+
+        for image_id in malformed_ids:
+            result = AltTextResult(
+                image_id=image_id,
+                alt_text="Test alt text.",
+                confidence_score=0.9,
+                validation_passed=True,
+                validation_warnings=[],
+                tokens_used=100,
+                processing_time_seconds=1.0,
+                timestamp=datetime.now(),
+            )
+
+            status = assembler._apply_alt_text_to_image(result)
+
+            assert "invalid" in status.lower() or "failed" in status.lower()
+
+
+class TestDOCXAssemblerEdgeCases:
+    """Test edge cases and boundary conditions."""
+
+    def test_apply_alt_text_with_very_long_text(
+        self,
+        sample_docx: Path,
+        output_path: Path
+    ):
+        """Test applying maximum length alt-text (350 chars)."""
+        assembler = DOCXAssembler(sample_docx, output_path)
+
+        # Create result with maximum allowed alt-text (350 chars)
+        long_alt_text = "A detailed diagram showing " + "X" * 300 + " elements."
+
+        result = AltTextResult(
+            image_id="img-0-0",
+            alt_text=long_alt_text,
+            confidence_score=0.9,
+            validation_passed=True,
+            validation_warnings=[],
+            tokens_used=100,
+            processing_time_seconds=1.0,
+            timestamp=datetime.now(),
+        )
+
+        # Mock to simulate success
+        assembler._apply_alt_text_to_image = Mock(return_value="success")
+
+        status_map = assembler.apply_alt_text([result])
+
+        assert len(status_map) == 1
+        assert status_map[result.image_id] == "success"
+
+    def test_apply_alt_text_with_special_characters(
+        self,
+        sample_docx: Path,
+        output_path: Path
+    ):
+        """Test applying alt-text with special characters."""
+        assembler = DOCXAssembler(sample_docx, output_path)
+
+        special_chars = 'Alt-text with "quotes", <tags>, & symbols: @#$%^&*()'
+
+        result = AltTextResult(
+            image_id="img-0-0",
+            alt_text=special_chars,
+            confidence_score=0.9,
+            validation_passed=True,
+            validation_warnings=[],
+            tokens_used=100,
+            processing_time_seconds=1.0,
+            timestamp=datetime.now(),
+        )
+
+        # Mock to simulate success
+        assembler._apply_alt_text_to_image = Mock(return_value="success")
+
+        status_map = assembler.apply_alt_text([result])
+
+        assert len(status_map) == 1
+        assert status_map[result.image_id] == "success"
+
+    def test_apply_alt_text_with_unicode(
+        self,
+        sample_docx: Path,
+        output_path: Path
+    ):
+        """Test applying alt-text with unicode characters."""
+        assembler = DOCXAssembler(sample_docx, output_path)
+
+        unicode_text = "Diagram avec émojis: 🎨 📊 🔬 中文 العربية"
+
+        result = AltTextResult(
+            image_id="img-0-0",
+            alt_text=unicode_text,
+            confidence_score=0.9,
+            validation_passed=True,
+            validation_warnings=[],
+            tokens_used=100,
+            processing_time_seconds=1.0,
+            timestamp=datetime.now(),
+        )
+
+        # Mock to simulate success
+        assembler._apply_alt_text_to_image = Mock(return_value="success")
+
+        status_map = assembler.apply_alt_text([result])
+
+        assert len(status_map) == 1
+
+    def test_document_with_no_paragraphs(
+        self,
+        tmp_path: Path,
+        output_path: Path
+    ):
+        """Test handling document with no paragraphs."""
+        # Create minimal DOCX
+        empty_docx = tmp_path / "empty.docx"
+        doc = Document()
+        # Don't add any paragraphs
+        doc.save(str(empty_docx))
+
+        assembler = DOCXAssembler(empty_docx, output_path)
+
+        # Should still work but have 0 paragraphs
+        # (Note: Word documents typically have at least one empty paragraph)
+        assert assembler.document is not None
+        assert hasattr(assembler.document, "paragraphs")

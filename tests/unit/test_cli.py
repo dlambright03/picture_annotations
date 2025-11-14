@@ -29,53 +29,58 @@ class TestArgumentParser:
         """Test that input file is a required argument."""
         parser = create_argument_parser()
 
-        # Should fail without input
-        with pytest.raises(SystemExit):
-            parser.parse_args([])
+        # Should fail without subcommand - suppress argparse stderr output
+        with patch('sys.stderr'):
+            with pytest.raises(SystemExit):
+                parser.parse_args([])
 
-        # Should succeed with input
-        args = parser.parse_args(["test.docx"])
-        assert args.input == "test.docx"
+        # Should succeed with extract subcommand and input
+        args = parser.parse_args(["extract", "test.docx"])
+        assert args.extract_input == "test.docx"
+        assert args.command == "extract"
 
     def test_optional_output_argument(self) -> None:
         """Test --output argument is parsed correctly."""
         parser = create_argument_parser()
-        args = parser.parse_args(["test.docx", "--output", "output.docx"])
+        args = parser.parse_args(["extract", "test.docx", "--output", "output.json"])
 
-        assert args.output == "output.docx"
+        assert args.output == "output.json"
 
     def test_optional_context_argument(self) -> None:
         """Test --context argument is parsed correctly."""
         parser = create_argument_parser()
-        args = parser.parse_args(["test.docx", "--context", "context.txt"])
+        args = parser.parse_args(["extract", "test.docx", "--context", "context.txt"])
 
         assert args.context == "context.txt"
 
-    def test_verbose_flag(self) -> None:
-        """Test --verbose flag is parsed correctly."""
+    def test_backup_flag_on_apply(self) -> None:
+        """Test --backup flag is parsed correctly on apply command."""
         parser = create_argument_parser()
-        args = parser.parse_args(["test.docx", "--verbose"])
-
-        assert args.verbose is True
-
-    def test_dry_run_flag(self) -> None:
-        """Test --dry-run flag is parsed correctly."""
-        parser = create_argument_parser()
-        args = parser.parse_args(["test.docx", "--dry-run"])
-
-        assert args.dry_run is True
-
-    def test_backup_flag(self) -> None:
-        """Test --backup flag is parsed correctly."""
-        parser = create_argument_parser()
-        args = parser.parse_args(["test.docx", "--backup"])
+        args = parser.parse_args(["apply", "test.docx", "alttext.json", "--backup"])
 
         assert args.backup is True
+
+    def test_extract_command_parsed(self) -> None:
+        """Test extract command is parsed correctly."""
+        parser = create_argument_parser()
+        args = parser.parse_args(["extract", "test.docx"])
+
+        assert args.command == "extract"
+        assert args.extract_input == "test.docx"
+
+    def test_apply_command_parsed(self) -> None:
+        """Test apply command is parsed correctly."""
+        parser = create_argument_parser()
+        args = parser.parse_args(["apply", "test.docx", "alttext.json"])
+
+        assert args.command == "apply"
+        assert args.apply_input == "test.docx"
+        assert args.alttext == "alttext.json"
 
     def test_log_level_argument(self) -> None:
         """Test --log-level argument with valid choices."""
         parser = create_argument_parser()
-        args = parser.parse_args(["test.docx", "--log-level", "DEBUG"])
+        args = parser.parse_args(["extract", "test.docx", "--log-level", "DEBUG"])
 
         assert args.log_level == "DEBUG"
 
@@ -83,31 +88,41 @@ class TestArgumentParser:
         """Test that invalid log level is rejected."""
         parser = create_argument_parser()
 
-        with pytest.raises(SystemExit):
-            parser.parse_args(["test.docx", "--log-level", "INVALID"])
+        with patch('sys.stderr'):
+            with pytest.raises(SystemExit):
+                parser.parse_args(["extract", "test.docx", "--log-level", "INVALID"])
 
     def test_max_images_argument(self) -> None:
         """Test --max-images argument is parsed correctly."""
         parser = create_argument_parser()
-        args = parser.parse_args(["test.docx", "--max-images", "10"])
+        args = parser.parse_args(["extract", "test.docx", "--max-images", "10"])
 
         assert args.max_images == 10
 
-    def test_short_flags(self) -> None:
-        """Test that short flags work correctly."""
+    def test_short_flags_extract(self) -> None:
+        """Test that short flags work correctly on extract command."""
         parser = create_argument_parser()
         args = parser.parse_args([
+            "extract",
             "test.docx",
-            "-o", "output.docx",
+            "-o", "output.json",
             "-c", "context.txt",
-            "-v",
-            "-b",
+        ])
+
+        assert args.output == "output.json"
+        assert args.context == "context.txt"
+
+    def test_short_flags_apply(self) -> None:
+        """Test that short flags work correctly on apply command."""
+        parser = create_argument_parser()
+        args = parser.parse_args([
+            "apply",
+            "test.docx",
+            "alttext.json",
+            "-o", "output.docx",
         ])
 
         assert args.output == "output.docx"
-        assert args.context == "context.txt"
-        assert args.verbose is True
-        assert args.backup is True
 
 
 class TestInputFileValidation:
@@ -283,21 +298,28 @@ class TestOutputPathGeneration:
 class TestCLIMain:
     """Tests for CLI main function."""
 
-    def test_main_with_valid_input(self, tmp_path: Path) -> None:
+    @patch('ada_annotator.cli.asyncio.run')
+    @patch('ada_annotator.cli.command_extract')
+    def test_main_with_valid_input(self, mock_extract, mock_async_run, tmp_path: Path) -> None:
         """Test main function with valid input file."""
         # Create test file
         test_file = tmp_path / "test.docx"
         test_file.write_text("test content")
 
-        exit_code = main([str(test_file)])
+        # Mock successful extraction
+        mock_async_run.return_value = EXIT_SUCCESS
+
+        exit_code = main(["extract", str(test_file)])
 
         assert exit_code == EXIT_SUCCESS
+        mock_async_run.assert_called_once()
+        mock_extract.assert_called_once()
 
     def test_main_with_nonexistent_file(self, tmp_path: Path) -> None:
         """Test main function with nonexistent input file."""
         test_file = tmp_path / "nonexistent.docx"
 
-        exit_code = main([str(test_file)])
+        exit_code = main(["extract", str(test_file)])
 
         assert exit_code == EXIT_INPUT_ERROR
 
@@ -306,30 +328,44 @@ class TestCLIMain:
         test_file = tmp_path / "test.pdf"
         test_file.write_text("test content")
 
-        exit_code = main([str(test_file)])
+        exit_code = main(["extract", str(test_file)])
 
         assert exit_code == EXIT_INPUT_ERROR
 
-    def test_main_with_output_argument(self, tmp_path: Path) -> None:
+    @patch('ada_annotator.cli.asyncio.run')
+    @patch('ada_annotator.cli.command_extract')
+    def test_main_with_output_argument(self, mock_extract, mock_async_run, tmp_path: Path) -> None:
         """Test main function with custom output path."""
         test_file = tmp_path / "test.docx"
         test_file.write_text("test content")
-        output_file = tmp_path / "output.docx"
+        output_file = tmp_path / "output.json"
 
-        exit_code = main([str(test_file), "--output", str(output_file)])
+        # Mock successful extraction
+        mock_async_run.return_value = EXIT_SUCCESS
+
+        exit_code = main(["extract", str(test_file), "--output", str(output_file)])
 
         assert exit_code == EXIT_SUCCESS
+        mock_async_run.assert_called_once()
+        mock_extract.assert_called_once()
 
-    def test_main_with_context_file(self, tmp_path: Path) -> None:
+    @patch('ada_annotator.cli.asyncio.run')
+    @patch('ada_annotator.cli.command_extract')
+    def test_main_with_context_file(self, mock_extract, mock_async_run, tmp_path: Path) -> None:
         """Test main function with context file."""
         test_file = tmp_path / "test.docx"
         test_file.write_text("test content")
         context_file = tmp_path / "context.txt"
         context_file.write_text("context")
 
-        exit_code = main([str(test_file), "--context", str(context_file)])
+        # Mock successful extraction
+        mock_async_run.return_value = EXIT_SUCCESS
+
+        exit_code = main(["extract", str(test_file), "--context", str(context_file)])
 
         assert exit_code == EXIT_SUCCESS
+        mock_async_run.assert_called_once()
+        mock_extract.assert_called_once()
 
     def test_main_with_invalid_context_file(self, tmp_path: Path) -> None:
         """Test main function with invalid context file."""
@@ -337,33 +373,28 @@ class TestCLIMain:
         test_file.write_text("test content")
         context_file = tmp_path / "nonexistent.txt"
 
-        exit_code = main([str(test_file), "--context", str(context_file)])
+        exit_code = main(["extract", str(test_file), "--context", str(context_file)])
 
         assert exit_code == EXIT_INPUT_ERROR
 
-    def test_main_dry_run_mode(self, tmp_path: Path) -> None:
-        """Test main function in dry-run mode."""
+    def test_main_with_max_images(self, tmp_path: Path) -> None:
+        """Test main function with max-images limit."""
         test_file = tmp_path / "test.docx"
         test_file.write_text("test content")
 
-        exit_code = main([str(test_file), "--dry-run"])
+        # Should fail with invalid file but parser should accept the argument
+        exit_code = main(["extract", str(test_file), "--max-images", "5"])
 
-        assert exit_code == EXIT_SUCCESS
+        # Will fail due to invalid DOCX, but that's expected
+        assert exit_code != EXIT_SUCCESS  # File isn't a real DOCX
 
-    def test_main_with_backup_flag(self, tmp_path: Path) -> None:
-        """Test main function with backup flag."""
+    def test_main_with_log_level(self, tmp_path: Path) -> None:
+        """Test main function with log level."""
         test_file = tmp_path / "test.docx"
         test_file.write_text("test content")
 
-        exit_code = main([str(test_file), "--backup"])
+        # Should fail with invalid file but parser should accept the argument
+        exit_code = main(["extract", str(test_file), "--log-level", "DEBUG"])
 
-        assert exit_code == EXIT_SUCCESS
-
-    def test_main_with_verbose_flag(self, tmp_path: Path) -> None:
-        """Test main function with verbose flag."""
-        test_file = tmp_path / "test.docx"
-        test_file.write_text("test content")
-
-        exit_code = main([str(test_file), "--verbose"])
-
-        assert exit_code == EXIT_SUCCESS
+        # Will fail due to invalid DOCX, but that's expected
+        assert exit_code != EXIT_SUCCESS  # File isn't a real DOCX

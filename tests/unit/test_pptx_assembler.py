@@ -479,3 +479,355 @@ class TestPPTXAssemblerIntegration:
 
         mock_presentation.save.assert_called_once_with(str(output_path))
 
+
+class TestPPTXAssemblerDecorativeImages:
+    """Test handling of decorative images."""
+
+    @patch('ada_annotator.document_processors.pptx_assembler.Presentation')
+    def test_apply_decorative_alt_text(self, mock_pres, tmp_path):
+        """Test applying empty alt-text for decorative images."""
+        input_path = tmp_path / "test.pptx"
+        input_path.touch()
+        output_path = tmp_path / "output.pptx"
+
+        mock_shape = Mock()
+        mock_shape.shape_type = 13
+        mock_shape._element = Mock()
+        mock_shape._element.find.return_value = Mock()
+
+        mock_slide = Mock()
+        mock_slide.shapes = [mock_shape]
+
+        mock_pres.return_value.slides = [mock_slide]
+
+        assembler = PPTXAssembler(input_path, output_path)
+
+        result = AltTextResult(
+            image_id="slide0_shape0",
+            alt_text="",  # Empty for decorative
+            confidence_score=0.95,
+            validation_passed=True,
+            validation_warnings=[],
+            tokens_used=10,
+            processing_time_seconds=0.5,
+            is_decorative=True,
+        )
+
+        status_map = assembler.apply_alt_text([result])
+
+        assert status_map["slide0_shape0"] == "success"
+        assert mock_shape.name == ""
+
+
+class TestPPTXAssemblerSetAltTextMethods:
+    """Test _set_alt_text_on_shape method variations."""
+
+    @patch('ada_annotator.document_processors.pptx_assembler.Presentation')
+    def test_set_alt_text_no_element(self, mock_pres, tmp_path):
+        """Test setting alt-text on shape without _element."""
+        input_path = tmp_path / "test.pptx"
+        input_path.touch()
+        output_path = tmp_path / "output.pptx"
+
+        mock_pres.return_value.slides = [Mock()]
+
+        assembler = PPTXAssembler(input_path, output_path)
+
+        # Create shape without _element attribute
+        mock_shape = Mock(spec=['name'])
+        mock_shape.name = "Old name"
+
+        result = assembler._set_alt_text_on_shape(mock_shape, "New alt-text")
+
+        assert result is True
+        assert mock_shape.name == "New alt-text"
+
+    @patch('ada_annotator.document_processors.pptx_assembler.Presentation')
+    def test_set_alt_text_xml_error(self, mock_pres, tmp_path):
+        """Test handling of XML errors during alt-text setting."""
+        input_path = tmp_path / "test.pptx"
+        input_path.touch()
+        output_path = tmp_path / "output.pptx"
+
+        mock_pres.return_value.slides = [Mock()]
+
+        assembler = PPTXAssembler(input_path, output_path)
+
+        # Create shape with _element that raises exception
+        mock_shape = Mock()
+        mock_shape.name = "Shape"
+        mock_shape._element.find.side_effect = Exception("XML error")
+
+        result = assembler._set_alt_text_on_shape(mock_shape, "Alt-text")
+
+        # Should still succeed due to name property
+        assert result is True
+
+    @patch('ada_annotator.document_processors.pptx_assembler.Presentation')
+    def test_set_alt_text_no_cnvpr(self, mock_pres, tmp_path):
+        """Test setting alt-text when cNvPr element not found."""
+        input_path = tmp_path / "test.pptx"
+        input_path.touch()
+        output_path = tmp_path / "output.pptx"
+
+        mock_pres.return_value.slides = [Mock()]
+
+        assembler = PPTXAssembler(input_path, output_path)
+
+        mock_shape = Mock()
+        mock_shape.name = "Shape"
+        mock_shape._element.find.return_value = None  # No cNvPr found
+
+        result = assembler._set_alt_text_on_shape(mock_shape, "Alt-text")
+
+        assert result is True
+
+    @patch('ada_annotator.document_processors.pptx_assembler.Presentation')
+    def test_set_alt_text_with_cnvpr(self, mock_pres, tmp_path):
+        """Test setting alt-text with valid cNvPr element."""
+        input_path = tmp_path / "test.pptx"
+        input_path.touch()
+        output_path = tmp_path / "output.pptx"
+
+        mock_pres.return_value.slides = [Mock()]
+
+        assembler = PPTXAssembler(input_path, output_path)
+
+        mock_cnvpr = Mock()
+        mock_shape = Mock()
+        mock_shape.name = "Shape"
+        mock_shape._element.find.return_value = mock_cnvpr
+
+        result = assembler._set_alt_text_on_shape(mock_shape, "Test alt-text")
+
+        assert result is True
+        mock_cnvpr.set.assert_any_call("title", "Test alt-text")
+        mock_cnvpr.set.assert_any_call("descr", "Test alt-text")
+
+
+class TestPPTXAssemblerEdgeCases:
+    """Test edge cases and error conditions."""
+
+    @patch('ada_annotator.document_processors.pptx_assembler.Presentation')
+    def test_apply_alt_text_empty_list(self, mock_pres, tmp_path):
+        """Test applying alt-text with empty results list."""
+        input_path = tmp_path / "test.pptx"
+        input_path.touch()
+        output_path = tmp_path / "output.pptx"
+
+        mock_pres.return_value.slides = [Mock()]
+
+        assembler = PPTXAssembler(input_path, output_path)
+
+        status_map = assembler.apply_alt_text([])
+
+        assert len(status_map) == 0
+
+    @patch('ada_annotator.document_processors.pptx_assembler.Presentation')
+    def test_apply_alt_text_exception_handling(self, mock_pres, tmp_path):
+        """Test that exceptions during alt-text application are caught."""
+        input_path = tmp_path / "test.pptx"
+        input_path.touch()
+        output_path = tmp_path / "output.pptx"
+
+        mock_pres.return_value.slides = [Mock()]
+
+        assembler = PPTXAssembler(input_path, output_path)
+
+        # Mock _apply_alt_text_to_image to raise exception
+        def raise_error(result):
+            raise Exception("Test error")
+
+        assembler._apply_alt_text_to_image = raise_error
+
+        result = AltTextResult(
+            image_id="slide0_shape0",
+            alt_text="Test.",
+            confidence_score=0.9,
+            validation_passed=True,
+            validation_warnings=[],
+            tokens_used=50,
+            processing_time_seconds=1.0,
+        )
+
+        status_map = assembler.apply_alt_text([result])
+
+        assert "failed: Test error" in status_map["slide0_shape0"]
+
+    @patch('ada_annotator.document_processors.pptx_assembler.Presentation')
+    def test_apply_alt_text_with_special_characters(self, mock_pres, tmp_path):
+        """Test applying alt-text with special characters."""
+        input_path = tmp_path / "test.pptx"
+        input_path.touch()
+        output_path = tmp_path / "output.pptx"
+
+        mock_shape = Mock()
+        mock_shape.shape_type = 13
+        mock_shape._element = Mock()
+        mock_shape._element.find.return_value = Mock()
+
+        mock_slide = Mock()
+        mock_slide.shapes = [mock_shape]
+
+        mock_pres.return_value.slides = [mock_slide]
+
+        assembler = PPTXAssembler(input_path, output_path)
+
+        special_alt_text = 'Image with "quotes" & <special> chars @#$%'
+
+        result = AltTextResult(
+            image_id="slide0_shape0",
+            alt_text=special_alt_text,
+            confidence_score=0.9,
+            validation_passed=True,
+            validation_warnings=[],
+            tokens_used=50,
+            processing_time_seconds=1.0,
+        )
+
+        status_map = assembler.apply_alt_text([result])
+
+        assert status_map["slide0_shape0"] == "success"
+        assert mock_shape.name == special_alt_text
+
+    @patch('ada_annotator.document_processors.pptx_assembler.Presentation')
+    def test_apply_alt_text_with_unicode(self, mock_pres, tmp_path):
+        """Test applying alt-text with unicode characters."""
+        input_path = tmp_path / "test.pptx"
+        input_path.touch()
+        output_path = tmp_path / "output.pptx"
+
+        mock_shape = Mock()
+        mock_shape.shape_type = 13
+        mock_shape._element = Mock()
+        mock_shape._element.find.return_value = Mock()
+
+        mock_slide = Mock()
+        mock_slide.shapes = [mock_shape]
+
+        mock_pres.return_value.slides = [mock_slide]
+
+        assembler = PPTXAssembler(input_path, output_path)
+
+        unicode_text = "Diagram with émojis 🎨 📊 中文 العربية"
+
+        result = AltTextResult(
+            image_id="slide0_shape0",
+            alt_text=unicode_text,
+            confidence_score=0.9,
+            validation_passed=True,
+            validation_warnings=[],
+            tokens_used=50,
+            processing_time_seconds=1.0,
+        )
+
+        status_map = assembler.apply_alt_text([result])
+
+        assert status_map["slide0_shape0"] == "success"
+
+    @patch('ada_annotator.document_processors.pptx_assembler.Presentation')
+    def test_find_picture_shape_mixed_types(self, mock_pres, tmp_path):
+        """Test finding picture shape among mixed shape types."""
+        input_path = tmp_path / "test.pptx"
+        input_path.touch()
+        output_path = tmp_path / "output.pptx"
+
+        # Create mixed shapes
+        text_shape = Mock()
+        text_shape.shape_type = 1  # TEXT_BOX
+
+        picture1 = Mock()
+        picture1.shape_type = 13  # PICTURE
+
+        rectangle = Mock()
+        rectangle.shape_type = 5  # RECTANGLE
+
+        picture2 = Mock()
+        picture2.shape_type = 13  # PICTURE
+
+        mock_slide = Mock()
+        mock_slide.shapes = [text_shape, picture1, rectangle, picture2]
+
+        mock_pres.return_value.slides = [mock_slide]
+
+        assembler = PPTXAssembler(input_path, output_path)
+
+        # Find first picture (should be picture1)
+        found = assembler._find_picture_shape(mock_slide, 0, 0)
+        assert found == picture1
+
+        # Find second picture (should be picture2)
+        found = assembler._find_picture_shape(mock_slide, 0, 1)
+        assert found == picture2
+
+    @patch('ada_annotator.document_processors.pptx_assembler.Presentation')
+    def test_find_picture_shape_index_out_of_range(self, mock_pres, tmp_path):
+        """Test finding picture shape with index out of range."""
+        input_path = tmp_path / "test.pptx"
+        input_path.touch()
+        output_path = tmp_path / "output.pptx"
+
+        picture = Mock()
+        picture.shape_type = 13
+
+        mock_slide = Mock()
+        mock_slide.shapes = [picture]
+
+        mock_pres.return_value.slides = [mock_slide]
+
+        assembler = PPTXAssembler(input_path, output_path)
+
+        # Try to find shape index 5 when only 1 exists
+        found = assembler._find_picture_shape(mock_slide, 0, 5)
+
+        assert found is None
+
+
+class TestPPTXAssemblerMultipleShapes:
+    """Test handling of multiple shapes on slides."""
+
+    @patch('ada_annotator.document_processors.pptx_assembler.Presentation')
+    def test_apply_alt_text_to_multiple_shapes_same_slide(
+        self, mock_pres, tmp_path
+    ):
+        """Test applying alt-text to multiple shapes on same slide."""
+        input_path = tmp_path / "test.pptx"
+        input_path.touch()
+        output_path = tmp_path / "output.pptx"
+
+        # Create three picture shapes on one slide
+        shapes = []
+        for i in range(3):
+            shape = Mock()
+            shape.shape_type = 13
+            shape._element = Mock()
+            shape._element.find.return_value = Mock()
+            shapes.append(shape)
+
+        mock_slide = Mock()
+        mock_slide.shapes = shapes
+
+        mock_pres.return_value.slides = [mock_slide]
+
+        assembler = PPTXAssembler(input_path, output_path)
+
+        results = [
+            AltTextResult(
+                image_id=f"slide0_shape{i}",
+                alt_text=f"Image {i+1}.",
+                confidence_score=0.9,
+                validation_passed=True,
+                validation_warnings=[],
+                tokens_used=50,
+                processing_time_seconds=1.0,
+            )
+            for i in range(3)
+        ]
+
+        status_map = assembler.apply_alt_text(results)
+
+        assert all(v == "success" for v in status_map.values())
+        assert shapes[0].name == "Image 1."
+        assert shapes[1].name == "Image 2."
+        assert shapes[2].name == "Image 3."
+

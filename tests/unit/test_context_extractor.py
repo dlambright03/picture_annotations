@@ -52,13 +52,15 @@ class TestContextExtractorInit:
         assert extractor.external_context is not None
         assert len(extractor.external_context) > 0
 
-    def test_init_unsupported_format(self, tmp_path):
-        """Test initialization with unsupported file format."""
+    def test_init_pdf_format(self, tmp_path):
+        """Test initialization with PDF format (now supported)."""
         pdf_path = tmp_path / "test.pdf"
         pdf_path.write_text("fake pdf")
 
-        with pytest.raises(ValueError, match="Unsupported"):
-            ContextExtractor(pdf_path)
+        # PDF is now supported, should not raise
+        extractor = ContextExtractor(pdf_path)
+        assert extractor is not None
+        assert extractor.document_type == "PDF"
 
 
 class TestExternalContextLoading:
